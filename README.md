@@ -49,11 +49,7 @@
 2. 完成LangChain设计以方便后续对接ChatGLM2等大语言模型,以期辅助进行硬编码处理以及带来更好翻译效果
 ### 感谢
 1. [snbtlib](https://github.com/Tryanks/python-snbtlib)--提供snbt文本解析
-2. [PyQt-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets)--界面实现
-3. [JSON-i18n](https://github.com/MonianHello/JSON-i18n)--编辑平台界面设计(不包含代码)
-4. [i18n-dict](https://github.com/CFPATools/i18n-dict)--术语查询支持
-5. [opus-mt-en-zh](https://huggingface.co/Helsinki-NLP/opus-mt-en-zh)--离线翻译模型
-6. [CFPA全体成员](https://cfpa.site/)--汉化数据贡献
+2. [i18n-dict](https://github.com/CFPATools/i18n-dict)--模组术语库
 ### Tips
 1. 为了获取更好的翻译效果，如果使用百度翻译api建议先在百度翻译api中扩充自己的术语库，原版术语可以参考[CFPA术语库](https://github.com/CFPAOrg/Glossary)
 2. 如果你有更好的思路或者发现了某些bug，欢迎在此发起issue或pr！
