@@ -37,8 +37,11 @@
 4. 如果不需要为FTBQ提lang，你可以直接在文件浏览器中打开snbt文件对其进行直接编辑
 5. 维护翻译生态,请不要直接发布未经人工润色的机翻
 ### 效果：
-![29BL(U}7()AT$V7HFOP(BGL](https://github.com/XDawned/ModpackLocalizationTools/assets/96915192/c43ec8fe-b0da-466f-be98-60299b03a76e)
-
+<div align="center"> 
+    <img src="doc/images/demo-home.png" alt="主页" width="550" height="340" />
+    <img src="doc/images/demo-extract.png" alt="提取页" width="550" height="340" />
+    <img src="doc/images/demo-setting.png" alt="配置页" width="550" height="340" />
+</div>
 
 ### 可能遇到的问题
 1. 闪退，大概率为异常操作
