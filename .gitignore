@@ -1,14 +1,59 @@
-/shelf/
-/hook-ctypes.macholib.py
-/.idea/
-/build/
-/dist/
-/cache/
-/work/
-/gui/
-/save/
-/t
-/整合包本地化工具.spec
-/resource/controls
-/models/
+# 依赖包
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+requirements-local.txt
+
+# Electron
+dist/
+release/
+out/
+
+# 构建
+*.log
+*.local
+.DS_Store
+Thumbs.db
+
+# 配置文件
+config/config.json
+.env
+.env.local
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试
+coverage/
+.nyc_output/
+
+# 上传文件
+uploads/
+work/
+cache/
+/models/

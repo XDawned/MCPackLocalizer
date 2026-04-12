@@ -1,0 +1,267 @@
+/**
+ * 全局样式
+ */
+
+/* 重置样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 根变量 */
+:root {
+  /* 颜色 */
+  --primary-color: #0078d4;
+  --primary-hover: #106ebe;
+  --primary-active: #005a9e;
+  
+  --background-color: #f3f3f3;
+  --surface-color: #ffffff;
+  --surface-hover: #f5f5f5;
+  
+  --text-color: #323130;
+  --text-secondary-color: #605e5c;
+  --text-disabled-color: #a19f9d;
+  
+  --border-color: #e1dfdd;
+  --border-focus-color: #0078d4;
+  
+  --hover-color: #f0f0f0;
+  --active-color: #e5e5e5;
+  
+  --error-color: #a80000;
+  --error-background: #fde7e9;
+  --success-color: #107c10;
+  --success-background: #dff6dd;
+  --warning-color: #797775;
+  --warning-background: #fff4ce;
+  --info-color: #0078d4;
+  --info-background: #e5f5fd;
+  
+  /* 尺寸 */
+  --title-bar-height: 32px;
+  --navigation-width: 220px;
+  --header-height: 48px;
+  
+  /* 圆角 */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
+  
+  /* 过渡 */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+}
+
+/* 暗色主题 */
+[data-theme="dark"] {
+  --background-color: #1b1b1b;
+  --surface-color: #2d2d2d;
+  --surface-hover: #3a3a3a;
+  
+  --text-color: #ffffff;
+  --text-secondary-color: #a0a0a0;
+  --text-disabled-color: #666666;
+  
+  --border-color: #3d3d3d;
+  --border-focus-color: #4cc2ff;
+  
+  --hover-color: #3a3a3a;
+  --active-color: #4a4a4a;
+  
+  --error-background: #440e0e;
+  --success-background: #0f380f;
+  --warning-background: #3d3a24;
+  --info-background: #003a5c;
+}
+
+/* HTML 和 Body */
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 应用容器 */
+#app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary-color);
+}
+
+/* 通用工具类 */
+.text-primary {
+  color: var(--primary-color);
+}
+
+.text-secondary {
+  color: var(--text-secondary-color);
+}
+
+.text-error {
+  color: var(--error-color);
+}
+
+.text-success {
+  color: var(--success-color);
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-1 {
+  gap: 4px;
+}
+
+.gap-2 {
+  gap: 8px;
+}
+
+.gap-3 {
+  gap: 12px;
+}
+
+.gap-4 {
+  gap: 16px;
+}
+
+.p-1 {
+  padding: 4px;
+}
+
+.p-2 {
+  padding: 8px;
+}
+
+.p-3 {
+  padding: 12px;
+}
+
+.p-4 {
+  padding: 16px;
+}
+
+.m-1 {
+  margin: 4px;
+}
+
+.m-2 {
+  margin: 8px;
+}
+
+.m-3 {
+  margin: 12px;
+}
+
+.m-4 {
+  margin: 16px;
+}
+
+/* 禁用状态 */
+.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* 加载状态 */
+.loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn var(--transition-normal);
+}
+
+.slide-in {
+  animation: slideIn var(--transition-normal);
+}

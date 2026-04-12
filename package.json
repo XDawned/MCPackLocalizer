@@ -1,0 +1,105 @@
+{
+	"name": "modpack-localization-tools",
+	"version": "2.0.0",
+	"description": "Minecraft Modpack Localization Tools - Vue3 + Electron + Flask",
+	"author": "XDawned",
+	"license": "MIT",
+	"main": "electron/main.js",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview",
+		"electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+		"electron:build": "vite build && electron-builder",
+		"electron:build:win": "vite build && electron-builder --win",
+		"electron:build:mac": "vite build && electron-builder --mac",
+		"electron:build:linux": "vite build && electron-builder --linux",
+		"flask:dev": "cd backend && python app.py",
+		"flask:install": "pip install -r backend/requirements.txt",
+		"install:all": "npm install && pip install -r backend/requirements.txt"
+	},
+	"dependencies": {
+		"vue": "^3.4.0",
+		"vue-router": "^4.2.5",
+		"pinia": "^2.1.7",
+		"@fluentui/web-components": "^2.5.16",
+		"axios": "^1.6.5",
+		"ws": "^8.16.0",
+		"electron-store": "^8.1.0"
+	},
+	"devDependencies": {
+		"@vitejs/plugin-vue": "^5.0.3",
+		"vite": "^5.0.12",
+		"electron": "^28.1.4",
+		"electron-builder": "^24.9.1",
+		"concurrently": "^8.2.2",
+		"wait-on": "^7.2.0"
+	},
+	"build": {
+		"appId": "com.xdawned.modpack-localization-tools",
+		"productName": "Modpack Localization Tools",
+		"directories": {
+			"output": "release",
+			"buildResources": "public"
+		},
+		"files": [
+			"dist/**/*",
+			"electron/**/*",
+			"backend/**/*"
+		],
+		"extraResources": [
+			{
+				"from": "backend",
+				"to": "backend",
+				"filter": [
+					"**/*",
+					"!**/__pycache__",
+					"!*.pyc"
+				]
+			}
+		],
+		"win": {
+			"target": [
+				{
+					"target": "nsis",
+					"arch": [
+						"x64"
+					]
+				}
+			],
+			"icon": "public/icon.ico",
+			"artifactName": "${productName}-${version}-win-${arch}.${ext}"
+		},
+		"mac": {
+			"target": [
+				{
+					"target": "dmg",
+					"arch": [
+						"x64",
+						"arm64"
+					]
+				}
+			],
+			"icon": "public/icon.icns",
+			"artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+		},
+		"linux": {
+			"target": [
+				{
+					"target": "AppImage",
+					"arch": [
+						"x64"
+					]
+				}
+			],
+			"icon": "public/icon.png",
+			"artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+		},
+		"nsis": {
+			"oneClick": false,
+			"allowToChangeInstallationDirectory": true,
+			"createDesktopShortcut": true,
+			"createStartMenuShortcut": true
+		}
+	}
+}

@@ -1,0 +1,67 @@
+{
+	"appId": "com.xdawned.modpack-localization-tools",
+	"productName": "Modpack Localization Tools",
+	"directories": {
+		"output": "release",
+		"buildResources": "public"
+	},
+	"files": [
+		"dist/**/*",
+		"electron/**/*",
+		"backend/**/*"
+	],
+	"extraResources": [
+		{
+			"from": "backend",
+			"to": "backend",
+			"filter": [
+				"**/*",
+				"!**/__pycache__",
+				"!*.pyc"
+			]
+		}
+	],
+	"win": {
+		"target": [
+			{
+				"target": "nsis",
+				"arch": [
+					"x64"
+				]
+			}
+		],
+		"icon": "public/icon.ico",
+		"artifactName": "${productName}-${version}-win-${arch}.${ext}"
+	},
+	"mac": {
+		"target": [
+			{
+				"target": "dmg",
+				"arch": [
+					"x64",
+					"arm64"
+				]
+			}
+		],
+		"icon": "public/icon.icns",
+		"artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+	},
+	"linux": {
+		"target": [
+			{
+				"target": "AppImage",
+				"arch": [
+					"x64"
+				]
+			}
+		],
+		"icon": "public/icon.png",
+		"artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+	},
+	"nsis": {
+		"oneClick": false,
+		"allowToChangeInstallationDirectory": true,
+		"createDesktopShortcut": true,
+		"createStartMenuShortcut": true
+	}
+}
