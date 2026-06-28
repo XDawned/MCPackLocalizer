@@ -92,6 +92,7 @@ const createWindow = () => {
 
     if(process.env.NODE_ENV === 'development') {
         win.loadURL('http://localhost:5173');
+        win.webContents.openDevTools();
     } else {
         console.log(__dirname)
         // 先启动后端，等待就绪后通过后端 serve 的前端页面加载（同源，避免 CORS 问题）

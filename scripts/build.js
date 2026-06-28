@@ -129,7 +129,10 @@ function buildBackend() {
         console.log(`[build] Running: ${command}`);
 
         // 在 backend 目录下执行，确保模块导入正确
-        exec(command, { cwd: BACKEND_DIR, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+        // maxBuffer 设为 64MB，避免 PyInstaller 大量输出时触发 Node.js
+        // 缓冲区溢出（历史上曾导致子进程被强杀，Windows 上呈现为
+        // 退出码 3221225477 = 0xC0000005 STATUS_ACCESS_VIOLATION）
+        exec(command, { cwd: BACKEND_DIR, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
             if (stdout) console.log(stdout);
             if (stderr) console.error(stderr);
             if (error) {
@@ -151,30 +154,15 @@ if (FileSystem.existsSync(BUILD_DIR)) {
     console.log('[build] Cleaned previous build directory.');
 }
 
-// 并行构建前端和后端
-Promise.allSettled([
-    buildFrontend(),
-    buildBackend(),
-]).then((results) => {
-    const frontendResult = results[0];
-    const backendResult = results[1];
-
-    let hasError = false;
-
-    if (frontendResult.status === 'rejected') {
-        console.error('[build] Frontend build failed:', frontendResult.reason);
-        hasError = true;
-    }
-
-    if (backendResult.status === 'rejected') {
-        console.error('[build] Backend build failed:', backendResult.reason);
-        hasError = true;
-    }
-
-    if (hasError) {
-        console.error('\n[build] Build completed with errors!');
-        process.exit(1);
-    } else {
+// 串行构建：先前端，再后端
+// 原因：前端 Vite 构建会输出大量 SCSS legacy-js-api 警告（约 25 行 + 文件清单），
+// 如果与 PyInstaller 并发执行，Node.js 子进程的 stdout 缓冲区极易被填满，
+// 触发缓冲区溢出后子进程被强杀，Windows 上表现为退出码 3221225477
+// (0xC0000005 = STATUS_ACCESS_VIOLATION) —— 与 Python 3.12.10 的
+// dis 模块回归 bug 的表面症状相同，导致难以定位根因。
+buildFrontend()
+    .then(() => buildBackend())
+    .then(() => {
         // 将前端构建产物复制到后端目录下，以便后端 serve 前端静态文件
         const backendFrontendDir = Path.join(BUILD_DIR, 'backend', 'frontend');
         const frontendBuildDir = Path.join(BUILD_DIR, 'frontend');
@@ -190,5 +178,11 @@ Promise.allSettled([
         }
 
         console.log('\n[build] Frontend & Backend successfully built! (ready for electron-builder)');
-    }
-});
+    })
+    .catch((err) => {
+        console.error('\n[build] Build completed with errors!');
+        if (err) {
+            console.error(err && err.message ? err.message : err);
+        }
+        process.exit(1);
+    });

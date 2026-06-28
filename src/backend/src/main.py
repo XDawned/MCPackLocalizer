@@ -116,15 +116,29 @@ async def root():
 def _get_frontend_dir():
     """获取前端静态文件目录。
 
-    PyInstaller 打包模式：可执行文件同目录下的 frontend/ 子目录
-    开发模式：项目根目录下的 build/frontend/ 目录
+    优先级：
+    1. 环境变量 FRONTEND_DIR（开发时显式指定，例如 Vite dev server 的产物目录）
+    2. PyInstaller 打包模式：可执行文件同目录下的 frontend/ 子目录
+    3. 开发模式：项目根目录下的 build/frontend/ 目录
     """
+    # 1) 显式环境变量优先
+    env_frontend = os.environ.get("FRONTEND_DIR")
+    if env_frontend and os.path.isdir(env_frontend) and os.path.exists(os.path.join(env_frontend, "index.html")):
+        return env_frontend
+
     if getattr(sys, 'frozen', False):
         # PyInstaller 打包模式：可执行文件同目录
         base_dir = os.path.dirname(sys.executable)
     else:
-        # 开发模式：src/backend/ 的上级目录（项目根目录）
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # 开发模式：src/backend/src/main.py -> 项目根目录（需要向上 4 级）
+        # main.py -> src/ -> backend/ -> src/ -> 项目根/
+        base_dir = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.abspath(__file__))
+                )
+            )
+        )
 
     candidates = [
         os.path.join(base_dir, "frontend"),      # 打包模式: exe 同目录/frontend
@@ -139,8 +153,13 @@ def _get_frontend_dir():
 # 挂载前端静态文件（必须在所有 API 路由之后）
 _frontend_dir = _get_frontend_dir()
 if _frontend_dir:
-    # 挂载静态资源目录（assets 等）
-    app.mount("/assets", StaticFiles(directory=os.path.join(_frontend_dir, "assets")), name="static_assets")
+    # 挂载静态资源目录（assets 等），仅在目录存在时挂载
+    _assets_dir = os.path.join(_frontend_dir, "assets")
+    if os.path.isdir(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="static_assets")
+        logger.info(f"Static assets mounted from: {_assets_dir}")
+    else:
+        logger.info(f"Assets directory not found at: {_assets_dir}, skipping /assets mount.")
     logger.info(f"Frontend static files mounted from: {_frontend_dir}")
 else:
     logger.info("No frontend static files found, running in API-only mode.")
