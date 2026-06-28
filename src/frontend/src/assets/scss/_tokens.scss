@@ -1,0 +1,284 @@
+// =========================================================================
+//  MCPackLocalizer Design Token Library
+//  Fluent-aligned desktop token system for Vue + Element Plus surfaces.
+//  Auto-injected into every Vue SFC <style lang="scss"> via vite.config.js.
+// =========================================================================
+
+// =========================================================================
+//  1. COLORS
+// =========================================================================
+
+// -------------------------------------------------------------------------
+//  Brand & Primary
+// -------------------------------------------------------------------------
+$color-primary:         #0f6cbd;
+$color-primary-pressed: #0c5a9f;
+$color-primary-deep:    #08467d;
+$color-on-primary:      #ffffff;
+
+$color-brand-navy:      #0f172a;
+$color-brand-navy-deep: #0b1120;
+$color-brand-navy-mid:  #111827;
+
+$color-link-blue:         #0f6cbd;
+$color-link-blue-pressed: #0c5a9f;
+
+// -------------------------------------------------------------------------
+//  Brand Accent
+// -------------------------------------------------------------------------
+$color-brand-orange:      #c75c11;
+$color-brand-orange-deep: #8a3f08;
+$color-brand-pink:        #cc5da8;
+$color-brand-pink-deep:   #8e3b72;
+$color-brand-purple:      #6b4fd3;
+$color-brand-purple-300:  #cfbefd;
+$color-brand-purple-800:  #3f2b85;
+$color-brand-teal:        #0f766e;
+$color-brand-green:       #107c10;
+$color-brand-yellow:      #f3c846;
+$color-brand-brown:       #6b4f2a;
+
+// -------------------------------------------------------------------------
+//  Card Tints
+// -------------------------------------------------------------------------
+$color-tint-peach:       #fff1e7;
+$color-tint-rose:        #fcebf4;
+$color-tint-mint:        #eaf7f4;
+$color-tint-lavender:    #f0ecff;
+$color-tint-sky:         #eaf3fb;
+$color-tint-yellow:      #fff8df;
+$color-tint-yellow-bold: #f7e7ab;
+$color-tint-cream:       #f8f5ee;
+$color-tint-gray:        #eef1f5;
+
+// -------------------------------------------------------------------------
+//  Surfaces
+// -------------------------------------------------------------------------
+$color-canvas:            #f5f7fb;
+$color-canvas-subtle:     #eef2f7;
+$color-surface:           rgba(255, 255, 255, 0.84);
+$color-surface-strong:    rgba(255, 255, 255, 0.94);
+$color-surface-solid:     #ffffff;
+$color-surface-inset:     rgba(248, 250, 252, 0.92);
+$color-surface-accent:    rgba(15, 108, 189, 0.08);
+$color-surface-success:   rgba(16, 124, 16, 0.08);
+$color-surface-danger:    rgba(196, 43, 28, 0.08);
+
+// -------------------------------------------------------------------------
+//  Borders
+// -------------------------------------------------------------------------
+$color-hairline:        rgba(15, 23, 42, 0.14);
+$color-hairline-soft:   rgba(15, 23, 42, 0.08);
+$color-hairline-strong: rgba(15, 23, 42, 0.24);
+$color-border-accent:   rgba(15, 108, 189, 0.42);
+
+// -------------------------------------------------------------------------
+//  Text
+// -------------------------------------------------------------------------
+$color-ink-deep:       #020617;
+$color-ink:            #111827;
+$color-charcoal:       #1e293b;
+$color-slate:          #475569;
+$color-steel:          #64748b;
+$color-stone:          #7c8aa0;
+$color-muted:          #94a3b8;
+$color-on-dark:        #f8fafc;
+$color-on-dark-muted:  #cbd5e1;
+
+// -------------------------------------------------------------------------
+//  Semantic
+// -------------------------------------------------------------------------
+$color-success: #107c10;
+$color-warning: #c75c11;
+$color-error:   #c42b1c;
+
+// -------------------------------------------------------------------------
+//  Controls & Focus
+// -------------------------------------------------------------------------
+$color-control-bg:           rgba(255, 255, 255, 0.92);
+$color-control-bg-hover:     #ffffff;
+$color-control-bg-pressed:   #eaf3fb;
+$color-control-bg-disabled:  rgba(148, 163, 184, 0.16);
+$color-control-border:       rgba(15, 23, 42, 0.14);
+$color-control-border-hover: rgba(15, 23, 42, 0.24);
+$color-control-border-active: rgba(15, 108, 189, 0.55);
+$focus-ring-color:           rgba(15, 108, 189, 0.22);
+
+// =========================================================================
+//  2. TYPOGRAPHY
+// =========================================================================
+
+$font-family-sans: 'Segoe UI Variable Text', 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+$font-family-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', 'Monaco', monospace;
+
+$font-size-hero:             72px;
+$font-size-display-lg:       52px;
+$font-size-h1:               42px;
+$font-size-h2:               34px;
+$font-size-h3:               28px;
+$font-size-h4:               22px;
+$font-size-h5:               18px;
+$font-size-subtitle:         17px;
+$font-size-body:             15px;
+$font-size-body-sm:          14px;
+$font-size-caption:          12px;
+$font-size-micro:            11px;
+$font-size-micro-uppercase:  11px;
+$font-size-button:           14px;
+
+$font-weight-regular:  400;
+$font-weight-medium:   500;
+$font-weight-semibold: 600;
+$font-weight-bold:     700;
+
+$line-height-hero:     1.05;
+$line-height-display:  1.08;
+$line-height-h1:       1.12;
+$line-height-h2:       1.18;
+$line-height-h3:       1.24;
+$line-height-h4:       1.28;
+$line-height-h5:       1.36;
+$line-height-subtitle: 1.45;
+$line-height-body:     1.5;
+$line-height-body-sm:  1.45;
+$line-height-caption:  1.4;
+$line-height-button:   1.25;
+
+// =========================================================================
+//  3. SPACING
+// =========================================================================
+
+$spacing-xxs:         4px;
+$spacing-xs:          8px;
+$spacing-sm:          12px;
+$spacing-md:          16px;
+$spacing-lg:          20px;
+$spacing-xl:          24px;
+$spacing-xxl:         32px;
+$spacing-xxxl:        40px;
+$spacing-section-sm:  40px;
+$spacing-section:     56px;
+$spacing-section-lg:  80px;
+$spacing-hero:        96px;
+
+// =========================================================================
+//  4. BORDER RADIUS
+// =========================================================================
+
+$rounded-xs:    4px;
+$rounded-sm:    8px;
+$rounded-md:    10px;
+$rounded-lg:    14px;
+$rounded-xl:    18px;
+$rounded-xxl:   22px;
+$rounded-xxxl:  28px;
+$rounded-full:  9999px;
+
+// =========================================================================
+//  5. ELEVATION / SHADOWS
+// =========================================================================
+
+$shadow-flat:   none;
+$shadow-subtle: 0 1px 2px rgba(15, 23, 42, 0.06), 0 4px 10px rgba(15, 23, 42, 0.04);
+$shadow-card:   0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.05);
+$shadow-mockup: 0 24px 48px rgba(15, 23, 42, 0.18);
+$shadow-modal:  0 20px 48px rgba(15, 23, 42, 0.18);
+$focus-ring:    0 0 0 2px $focus-ring-color;
+
+// =========================================================================
+//  6. LAYOUT
+// =========================================================================
+
+$titlebar-height:           32px;
+$container-max:             1280px;
+$sidebar-width:             264px;
+$sidebar-collapsed-width:   76px;
+$transition-fast:           120ms cubic-bezier(0.33, 1, 0.68, 1);
+$transition-normal:         180ms cubic-bezier(0.33, 1, 0.68, 1);
+$transition-slow:           260ms cubic-bezier(0.33, 1, 0.68, 1);
+
+// =========================================================================
+//  7. COMPONENT MIXINS
+// =========================================================================
+
+@mixin button-base {
+  font-family: $font-family-sans;
+  font-size: $font-size-button;
+  font-weight: $font-weight-semibold;
+  line-height: $line-height-button;
+  border-radius: $rounded-sm;
+  padding: 8px 16px;
+  min-height: 32px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background-color $transition-fast,
+    border-color $transition-fast,
+    color $transition-fast,
+    box-shadow $transition-fast,
+    transform $transition-fast;
+}
+
+@mixin button-primary {
+  @include button-base;
+  background-color: $color-primary;
+  border-color: $color-primary;
+  color: $color-on-primary;
+
+  &:hover {
+    background-color: $color-primary-pressed;
+    border-color: $color-primary-pressed;
+  }
+
+  &:active {
+    background-color: $color-primary-deep;
+    border-color: $color-primary-deep;
+  }
+
+  &:focus-visible {
+    box-shadow: $focus-ring;
+  }
+}
+
+@mixin button-secondary {
+  @include button-base;
+  background-color: $color-control-bg;
+  color: $color-ink;
+  border-color: $color-control-border;
+
+  &:hover {
+    background-color: $color-control-bg-hover;
+    border-color: $color-control-border-hover;
+  }
+
+  &:active {
+    background-color: $color-control-bg-pressed;
+    border-color: $color-control-border-active;
+  }
+}
+
+@mixin button-dark {
+  @include button-base;
+  background-color: $color-brand-navy-mid;
+  color: $color-on-dark;
+}
+
+@mixin button-ghost {
+  @include button-base;
+  background-color: transparent;
+  color: $color-ink;
+  padding: 6px 10px;
+  border-color: transparent;
+
+  &:hover {
+    background-color: $color-surface;
+  }
+}
+
+@mixin surface-card($padding: $spacing-xl) {
+  background: $color-surface-strong;
+  border: 1px solid $color-hairline;
+  border-radius: $rounded-lg;
+  box-shadow: $shadow-subtle;
+  padding: $padding;
+}

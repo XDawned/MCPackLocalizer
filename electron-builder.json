@@ -1,0 +1,46 @@
+{
+    "appId": "MCPackLocalizer",
+    "asar": false,
+    "directories": {
+        "output": "dist"
+    },
+    "mac": {
+        "target": [
+            "dmg"
+        ],
+        "artifactName": "MCPackLocalizer"
+    },
+    "nsis": {
+        "oneClick": false,
+        "perMachine": false,
+        "allowToChangeInstallationDirectory": true
+    },
+    "win": {
+        "target": "nsis",
+        "artifactName": "MCPackLocalizer.exe"
+    },
+    "linux": {
+        "target": [
+            "AppImage"
+        ],
+        "artifactName": "MCPackLocalizer"
+    },
+    "files": [
+        "main.js",
+        "preload.js",
+        "build/backend/*",
+        "build/backend/frontend/**/*",
+        "build/frontend/**/*",
+        "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+        "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+        "!**/node_modules/*.d.ts",
+        "!**/node_modules/.bin",
+        "!src",
+        "!config",
+        "!README.md",
+        "!scripts",
+        "!build/renderer",
+        "!dist",
+        "!MCPackLocalizer/**/*"
+    ]
+}

@@ -1,0 +1,48 @@
+{
+  "name": "MCPackLocalizer",
+  "version": "2.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "node scripts/build.js && electron-forge start",
+    "build": "node scripts/build.js && electron-builder",
+    "build:mac": "node scripts/build.js && electron-builder --mac",
+    "build:win": "node scripts/build.js && electron-builder --win",
+    "build:linux": "node scripts/build.js && electron-builder --linux",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/essential",
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "parser": "@babel/eslint-parser",
+      "requireConfigFile": false
+    },
+    "rules": {}
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron-forge/cli": "^7.2.0",
+    "@electron-forge/maker-deb": "^7.2.0",
+    "@electron-forge/maker-rpm": "^7.2.0",
+    "@electron-forge/maker-squirrel": "^7.2.0",
+    "@electron-forge/maker-zip": "^7.2.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.2.0",
+    "@vitejs/plugin-vue": "^5.1.2",
+    "chalk": "^4.1.2",
+    "chokidar": "^3.6.0",
+    "electron": "^31.3.1",
+    "electron-builder": "^26.8.1",
+    "vite": "^5.3.5"
+  },
+  "dependencies": {
+    "tree-kill": "^1.2.2"
+  }
+}
