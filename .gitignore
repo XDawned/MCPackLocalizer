@@ -97,6 +97,7 @@ src/backend/*.spec
 
 # app cache
 workspace/
+*.db
 
 # ai
 .kilo

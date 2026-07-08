@@ -245,7 +245,7 @@ const icons = {
         </template>
 
         <div v-else-if="!isCollapsed" class="sidebar-empty-hint">
-          从“检索整合包”或“本地导入”开始后，这里会显示当前任务的步骤和状态。
+          从“本地导入”开始后，这里会显示当前任务的步骤和状态。
         </div>
       </section>
     </div>

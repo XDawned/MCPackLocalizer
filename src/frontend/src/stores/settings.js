@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS = {
   translate_batch_retry_limit: '3',
   target_minecraft_root: '',
   patch_output_dir: '',
-  include_i18n_update_mod: 'false',
+  include_i18n_update_mod: 'true',
   i18n_mod_cache_dir: ''
 }
 

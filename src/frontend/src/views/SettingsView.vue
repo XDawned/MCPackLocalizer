@@ -8,7 +8,6 @@ import {
   ElSwitch,
   ElForm,
   ElFormItem,
-  ElTag,
   ElAlert,
   ElEmpty,
   ElTabs,
@@ -157,11 +156,17 @@ const cacheStatsScopeEntries = computed(() => {
     { key: 'all', label: '全局复用', value: Number(source.all || 0) }
   ]
 })
+const cacheStatsScopeMax = computed(() => {
+  return cacheStatsScopeEntries.value.reduce((max, item) => Math.max(max, item.value), 0)
+})
 const cacheStatsLanguageEntries = computed(() => {
   const source = cacheStats.value?.by_target_language || {}
   return Object.entries(source)
     .map(([language, value]) => ({ language, value: Number(value || 0) }))
     .sort((a, b) => b.value - a.value)
+})
+const cacheStatsLanguageMax = computed(() => {
+  return cacheStatsLanguageEntries.value.reduce((max, item) => Math.max(max, item.value), 0)
 })
 
 function formatDateTime(value) {
@@ -443,14 +448,30 @@ onMounted(() => {
     <div v-loading="store.loading" class="settings-view" :class="{ 'settings-view--dialog': dialogMode }">
       <section v-if="!dialogMode" class="settings-hero">
         <div class="settings-hero-copy">
-          <span class="settings-kicker">系统设置</span>
+          <div class="settings-hero-meta">
+            <span class="settings-hero-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </span>
+            <span class="settings-kicker">系统设置</span>
+          </div>
           <h1 class="page-title">统一管理运行环境、提供商与缓存策略</h1>
           <p class="settings-subtitle">保持桌面工作区配置集中、状态清晰，并减少干扰性视觉元素。</p>
         </div>
         <div class="settings-summary-card">
-          <span class="summary-label">已配置提供商</span>
-          <span class="summary-value">{{ store.aiProviders.length }}</span>
-          <span class="summary-hint">可在此维护默认模型与连接状态</span>
+          <span class="summary-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          </span>
+          <div class="summary-body">
+            <span class="summary-label">已配置提供商</span>
+            <span class="summary-value">{{ store.aiProviders.length }}</span>
+            <span class="summary-hint">可在此维护默认模型与连接状态</span>
+          </div>
         </div>
       </section>
 
@@ -463,11 +484,19 @@ onMounted(() => {
         class="error-alert"
       />
 
-      <ElTabs v-model="activeTab" class="settings-tabs">
+      <ElTabs v-model="activeTab">
         <ElTabPane label="通用设置" name="general">
           <div class="tab-header tab-header--stacked">
             <div>
-              <h2 class="tab-section-title">通用设置</h2>
+              <h2 class="tab-section-title">
+                <span class="tab-section-title-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
+                </span>
+                通用设置
+              </h2>
               <p class="section-caption">语言、主题与启动行为。</p>
             </div>
           </div>
@@ -546,8 +575,18 @@ onMounted(() => {
         <ElTabPane label="AI 提供商" name="ai">
           <div class="tab-header">
             <div>
-              <h2 class="tab-section-title">AI 提供商配置</h2>
-              <p class="section-caption">为翻译工作流准备稳定的连接、模型与启用状态。</p>
+              <h2 class="tab-section-title">
+                <span class="tab-section-title-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z" />
+                    <circle cx="9" cy="14" r="1" />
+                    <circle cx="15" cy="14" r="1" />
+                    <path d="M9 18h6" />
+                  </svg>
+                </span>
+                AI 提供商配置
+              </h2>
+              <p class="section-caption">所有提供商配置均保存在本地，不会上传或同步到任何远端服务</p>
             </div>
             <ElButton type="primary" @click="openAddModal">添加提供商</ElButton>
           </div>
@@ -565,43 +604,61 @@ onMounted(() => {
               class="provider-card"
             >
               <div class="provider-card-main">
+an                <div
+                  class="provider-avatar"
+                  :data-type="provider.provider_type"
+                  aria-hidden="true"
+                >
+                  {{ (providerTypeMeta[provider.provider_type]?.label || provider.provider_type || '?').slice(0, 2).toUpperCase() }}
+                </div>
                 <div class="provider-info">
                   <div class="provider-name-row">
                     <span class="provider-name">{{ provider.name }}</span>
-                    <ElTag
-                      :type="providerTypeTagType[provider.provider_type] || 'info'"
-                      size="small"
-                      class="provider-type-tag"
-                    >
+                    <span class="provider-chip provider-chip--type">
+                      <span class="provider-chip__dot" />
                       {{ providerTypeMeta[provider.provider_type]?.label || provider.provider_type }}
-                    </ElTag>
-                    <ElTag
-                      :type="provider.is_enabled ? 'success' : 'info'"
-                      size="small"
-                      class="provider-status-tag"
+                    </span>
+                    <span
+                      :class="['provider-chip', provider.is_enabled ? 'provider-chip--success' : 'provider-chip--muted']"
                     >
+                      <span class="provider-chip__dot" />
                       {{ provider.is_enabled ? '已启用' : '已禁用' }}
-                    </ElTag>
-                    <ElTag
+                    </span>
+                    <span
                       v-if="provider.has_api_key"
-                      type="success"
-                      size="small"
-                      effect="light"
+                      class="provider-chip provider-chip--success"
                     >
+                      <span class="provider-chip__dot" />
                       已配置密钥
-                    </ElTag>
-                    <ElTag
+                    </span>
+                    <span
                       v-else
-                      type="danger"
-                      size="small"
-                      effect="light"
+                      class="provider-chip provider-chip--danger"
                     >
+                      <span class="provider-chip__dot" />
                       未配置密钥
-                    </ElTag>
+                    </span>
                   </div>
                   <div class="provider-meta">
-                    <span class="provider-url">{{ provider.api_base || '未设置' }}</span>
-                    <span class="provider-model">{{ provider.default_model || '未设置默认模型' }}</span>
+                    <span class="provider-meta-row">
+                      <span class="provider-meta-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                      </span>
+                      <span class="provider-meta-label">接口</span>
+                      <span class="provider-meta-value">{{ provider.api_base || '未设置' }}</span>
+                    </span>
+                    <span class="provider-meta-row">
+                      <span class="provider-meta-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 2 4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z" />
+                        </svg>
+                      </span>
+                      <span class="provider-meta-label">模型</span>
+                      <span class="provider-meta-value">{{ provider.default_model || '未设置默认模型' }}</span>
+                    </span>
                   </div>
                 </div>
                 <div class="provider-actions">
@@ -618,7 +675,7 @@ onMounted(() => {
                     @confirm="handleDelete(provider.id)"
                   >
                     <template #reference>
-                      <ElButton size="small" type="danger">删除</ElButton>
+                      <ElButton size="small" type="danger" plain>删除</ElButton>
                     </template>
                   </ElPopconfirm>
                 </div>
@@ -628,12 +685,14 @@ onMounted(() => {
                 v-if="testingProviderId === provider.id"
                 class="test-status test-loading"
               >
+                <span class="test-status__dot" />
                 <span>正在测试连接...</span>
               </div>
               <div
                 v-else-if="testResult && testResultProviderId === provider.id"
                 :class="['test-status', testResult.success ? 'test-success' : 'test-fail']"
               >
+                <span class="test-status__dot" />
                 <span v-if="testResult.success">连接成功 — 延迟 {{ testResult.latency_ms ?? '—' }}ms{{ testResult.model_used ? '，模型: ' + testResult.model_used : '' }}</span>
                 <span v-else>连接失败: {{ testResult.message || '未知错误' }}</span>
               </div>
@@ -644,8 +703,16 @@ onMounted(() => {
         <ElTabPane label="缓存配置" name="cache">
           <div class="tab-header tab-header--stacked">
             <div>
-              <h2 class="tab-section-title">缓存配置</h2>
-              <p class="section-caption">当前页已接入后端真实缓存数据；下方策略项仍作为展示占位，不影响实际翻译时由配置页传入的缓存参数。</p>
+              <h2 class="tab-section-title">
+                <span class="tab-section-title-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 1 1-9-9c2.39 0 4.68.94 6.36 2.64" />
+                    <path d="M21 4v5h-5" />
+                  </svg>
+                </span>
+                缓存配置
+              </h2>
+              <p class="section-caption">通过缓存来减少token消耗，已命中文本会直接进行替换</p>
             </div>
           </div>
 
@@ -676,24 +743,56 @@ onMounted(() => {
             </ElForm>
           </div>
 
-          <h2 class="tab-section-title stats-title">缓存统计</h2>
           <div v-loading="store.cacheStatsLoading" class="settings-card">
             <div class="cache-stats-grid">
               <div class="cache-stat-item">
-                <span class="stat-label-text">缓存条目</span>
-                <span class="stat-value">{{ cacheStats.entries.toLocaleString() }} 条</span>
+                <span class="cache-stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3" />
+                    <path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+                    <path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6" />
+                  </svg>
+                </span>
+                <div class="cache-stat-body">
+                  <span class="stat-label-text">缓存条目</span>
+                  <span class="stat-value">{{ cacheStats.entries.toLocaleString() }} 条</span>
+                </div>
               </div>
               <div class="cache-stat-item">
-                <span class="stat-label-text">累计命中</span>
-                <span class="stat-value stat-green">{{ cacheStats.hits.toLocaleString() }} 次</span>
+                <span class="cache-stat-icon cache-stat-icon--success" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </span>
+                <div class="cache-stat-body">
+                  <span class="stat-label-text">累计命中</span>
+                  <span class="stat-value stat-green">{{ cacheStats.hits.toLocaleString() }} 次</span>
+                </div>
               </div>
               <div class="cache-stat-item">
-                <span class="stat-label-text">最近命中</span>
-                <span class="stat-value">{{ formatDateTime(cacheStats.last_used_at) }}</span>
+                <span class="cache-stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </span>
+                <div class="cache-stat-body">
+                  <span class="stat-label-text">最近命中</span>
+                  <span class="stat-value stat-value--sm">{{ formatDateTime(cacheStats.last_used_at) }}</span>
+                </div>
               </div>
               <div class="cache-stat-item">
-                <span class="stat-label-text">最近写入</span>
-                <span class="stat-value">{{ formatDateTime(cacheStats.last_created_at) }}</span>
+                <span class="cache-stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                  </svg>
+                </span>
+                <div class="cache-stat-body">
+                  <span class="stat-label-text">最近写入</span>
+                  <span class="stat-value stat-value--sm">{{ formatDateTime(cacheStats.last_created_at) }}</span>
+                </div>
               </div>
             </div>
 
@@ -702,8 +801,14 @@ onMounted(() => {
                 <div class="cache-breakdown-title">作用域分布</div>
                 <div class="cache-breakdown-list">
                   <div v-for="entry in cacheStatsScopeEntries" :key="entry.key" class="cache-breakdown-row">
-                    <span>{{ entry.label }}</span>
-                    <span>{{ entry.value.toLocaleString() }}</span>
+                    <span class="cache-breakdown-row__label">{{ entry.label }}</span>
+                    <span class="cache-breakdown-row__value">{{ entry.value.toLocaleString() }}</span>
+                    <div class="cache-breakdown-row__bar">
+                      <span
+                        class="cache-breakdown-row__bar-fill"
+                        :style="{ width: cacheStatsScopeMax > 0 ? `${(entry.value / cacheStatsScopeMax) * 100}%` : '0%' }"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -712,8 +817,14 @@ onMounted(() => {
                 <div class="cache-breakdown-title">目标语言分布</div>
                 <div v-if="cacheStatsLanguageEntries.length > 0" class="cache-breakdown-list">
                   <div v-for="entry in cacheStatsLanguageEntries.slice(0, 6)" :key="entry.language" class="cache-breakdown-row">
-                    <span>{{ entry.language }}</span>
-                    <span>{{ entry.value.toLocaleString() }}</span>
+                    <span class="cache-breakdown-row__label">{{ entry.language }}</span>
+                    <span class="cache-breakdown-row__value">{{ entry.value.toLocaleString() }}</span>
+                    <div class="cache-breakdown-row__bar">
+                      <span
+                        class="cache-breakdown-row__bar-fill"
+                        :style="{ width: cacheStatsLanguageMax > 0 ? `${(entry.value / cacheStatsLanguageMax) * 100}%` : '0%' }"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div v-else class="cache-breakdown-empty">暂无语言分布数据</div>
@@ -721,12 +832,22 @@ onMounted(() => {
             </div>
           </div>
 
-          <h2 class="tab-section-title danger-title">危险操作</h2>
           <div class="danger-card">
             <div class="danger-content">
               <div class="danger-info">
-                <span class="danger-label">清空所有缓存</span>
-                <span class="danger-desc">删除所有翻译缓存数据，此操作不可撤销</span>
+                <span class="danger-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <path d="M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                </span>
+                <div class="danger-text">
+                  <span class="danger-label">清空所有缓存</span>
+                  <span class="danger-desc">删除所有翻译缓存数据，此操作不可撤销</span>
+                </div>
               </div>
               <ElPopconfirm
                 title="确定要清空所有翻译缓存吗？此操作不可撤销。"
@@ -839,7 +960,7 @@ onMounted(() => {
 .settings-view {
   max-width: 1040px;
   margin: 0 auto;
-  padding: 24px 24px 80px;
+  padding: 28px 24px 80px;
 }
 
 .settings-view--dialog {
@@ -848,126 +969,163 @@ onMounted(() => {
   padding: 0 0 4px;
 }
 
+// =====================================================================
+//  HERO
+// =====================================================================
 .settings-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: $spacing-lg;
-  margin-bottom: $spacing-lg;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--notion-spacing-lg);
+  margin-bottom: var(--notion-spacing-xl);
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
   }
 }
 
-.settings-hero-copy,
-.settings-summary-card,
-.settings-card,
-.provider-card,
-.danger-card {
-  background: var(--fluent-surface-2);
-  border: 1px solid var(--notion-hairline-soft);
-  box-shadow: var(--notion-shadow-subtle);
-}
-
 .settings-hero-copy {
-  border-radius: $rounded-xl;
-  padding: $spacing-xl;
+  position: relative;
+  border-radius: var(--notion-rounded-xl);
+  padding: var(--notion-spacing-xl) var(--notion-spacing-xl);
   display: flex;
   flex-direction: column;
-  gap: $spacing-xs;
+  gap: 10px;
+  background:
+    linear-gradient(135deg, rgba(15, 108, 189, 0.06) 0%, rgba(15, 108, 189, 0) 55%),
+    var(--fluent-surface-2);
+  border: 1px solid var(--notion-hairline-soft);
+  box-shadow: var(--notion-shadow-subtle);
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: auto -40px -60px auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--fluent-accent-subtle), transparent 65%);
+    pointer-events: none;
+  }
+}
+
+.settings-hero-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.settings-hero-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--notion-rounded-sm);
+  background: var(--fluent-accent-subtle);
+  color: var(--fluent-accent);
 }
 
 .settings-kicker {
-  font-size: $font-size-micro-uppercase;
-  letter-spacing: 0.08em;
+  font-size: var(--notion-font-size-micro);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--fluent-accent);
-  font-weight: $font-weight-semibold;
+  font-weight: 600;
 }
 
 .page-title {
-  font-size: var(--notion-font-size-h3);
+  font-size: var(--notion-font-size-h2);
   font-weight: 600;
   color: var(--notion-ink);
   margin: 0;
-  line-height: var(--notion-line-height-h3);
+  line-height: var(--notion-line-height-h2);
+  letter-spacing: var(--notion-ls-h2);
+  position: relative;
+  z-index: 1;
 }
 
 .settings-subtitle {
   margin: 0;
-  color: var(--notion-steel);
-  font-size: var(--notion-font-size-body-sm);
-  line-height: var(--notion-line-height-body-sm);
+  color: var(--notion-slate);
+  font-size: var(--notion-font-size-body);
+  line-height: var(--notion-line-height-body);
+  max-width: 640px;
+  position: relative;
+  z-index: 1;
 }
 
 .settings-summary-card {
-  border-radius: $rounded-xl;
-  padding: $spacing-lg;
+  border-radius: var(--notion-rounded-xl);
+  padding: var(--notion-spacing-lg) var(--notion-spacing-xl);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background:
+    linear-gradient(135deg, var(--fluent-accent) 0%, var(--fluent-accent-pressed) 100%);
+  border: 1px solid transparent;
+  box-shadow: 0 10px 24px rgba(15, 108, 189, 0.22), var(--notion-shadow-subtle);
+  color: var(--notion-on-primary);
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    right: -30px;
+    bottom: -30px;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    pointer-events: none;
+  }
+}
+
+.summary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--notion-rounded-md);
+  background: rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+}
+
+.summary-body {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-  background: linear-gradient(180deg, var(--fluent-surface-3), var(--fluent-surface-2));
+  gap: 2px;
+  min-width: 0;
+  z-index: 1;
 }
 
 .summary-label {
-  font-size: $font-size-caption;
-  color: var(--notion-steel);
+  font-size: var(--notion-font-size-caption);
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 500;
 }
 
 .summary-value {
   font-size: 28px;
-  line-height: 1;
-  font-weight: $font-weight-semibold;
-  color: var(--notion-ink);
+  line-height: 1.05;
+  font-weight: 600;
+  color: var(--notion-on-primary);
+  letter-spacing: -0.01em;
 }
 
 .summary-hint {
-  font-size: $font-size-caption;
-  color: var(--notion-steel);
+  font-size: var(--notion-font-size-caption);
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.4;
 }
 
 .error-alert {
   margin-bottom: var(--notion-spacing-md);
-}
-
-.settings-tabs {
-  margin-top: var(--notion-spacing-xs);
-
-  :deep(.el-tabs__header) {
-    margin: 0 0 var(--notion-spacing-lg);
-  }
-
-  :deep(.el-tabs__nav-wrap::after) {
-    height: 1px;
-    background-color: var(--notion-hairline);
-  }
-
-  :deep(.el-tabs__item) {
-    font-size: var(--notion-font-size-body-sm);
-    font-weight: 500;
-    color: var(--notion-steel);
-    padding: 10px var(--notion-spacing-md);
-    height: auto;
-    line-height: var(--notion-line-height-body-sm);
-    transition: color var(--notion-transition-fast), background-color var(--notion-transition-fast);
-    border-radius: var(--notion-rounded-sm);
-
-    &:hover {
-      color: var(--notion-ink);
-      background: var(--fluent-surface-accent-subtle);
-    }
-
-    &.is-active {
-      color: var(--notion-ink);
-      font-weight: 600;
-    }
-  }
-
-  :deep(.el-tabs__active-bar) {
-    height: 2px;
-    background-color: var(--fluent-accent);
-  }
+  border-radius: var(--notion-rounded-md);
 }
 
 .tab-header {
@@ -988,10 +1146,26 @@ onMounted(() => {
 }
 
 .tab-section-title {
-  font-size: var(--notion-font-size-h5);
+  font-size: var(--notion-font-size-h4);
   font-weight: 600;
   color: var(--notion-ink);
   margin: 0 0 6px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tab-section-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--notion-rounded-sm);
+  background: var(--fluent-accent-subtle);
+  color: var(--fluent-accent);
+  flex-shrink: 0;
 }
 
 .section-caption {
@@ -1011,6 +1185,7 @@ onMounted(() => {
 
 .provider-empty {
   margin: 48px 0;
+  border-radius: var(--notion-rounded-lg);
 }
 
 .provider-list {
@@ -1020,8 +1195,38 @@ onMounted(() => {
 }
 
 .provider-card {
+  position: relative;
   border-radius: var(--notion-rounded-lg);
-  padding: var(--notion-spacing-lg);
+  padding: var(--notion-spacing-lg) var(--notion-spacing-xl);
+  background: var(--fluent-surface-2);
+  border: 1px solid var(--notion-hairline-soft);
+  box-shadow: var(--notion-shadow-subtle);
+  transition:
+    border-color var(--notion-transition-fast),
+    box-shadow var(--notion-transition-fast),
+    transform var(--notion-transition-fast);
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 16px;
+    bottom: 16px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: linear-gradient(180deg, var(--fluent-accent), var(--fluent-accent-pressed));
+    opacity: 0;
+    transition: opacity var(--notion-transition-fast);
+  }
+
+  &:hover {
+    border-color: var(--notion-hairline);
+    box-shadow: var(--notion-shadow-card);
+
+    &::before {
+      opacity: 1;
+    }
+  }
 }
 
 .cache-breakdown-grid {
@@ -1052,30 +1257,97 @@ onMounted(() => {
 .cache-breakdown-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .cache-breakdown-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--notion-spacing-md);
-  color: var(--notion-steel);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--notion-spacing-md);
+  row-gap: 4px;
+  color: var(--notion-slate);
   font-size: var(--notion-font-size-body-sm);
+  align-items: center;
+}
+
+.cache-breakdown-row__label {
+  color: var(--notion-ink);
+  font-weight: 500;
+}
+
+.cache-breakdown-row__value {
+  color: var(--notion-ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--notion-font-size-body-sm);
+}
+
+.cache-breakdown-row__bar {
+  grid-column: 1 / -1;
+  height: 4px;
+  background: var(--fluent-bg-canvas-subtle);
+  border-radius: var(--notion-rounded-full);
+  overflow: hidden;
+}
+
+.cache-breakdown-row__bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--fluent-accent), var(--fluent-accent-pressed));
+  border-radius: inherit;
+  transition: width var(--notion-transition-normal);
 }
 
 .cache-breakdown-empty {
   color: var(--notion-steel);
   font-size: var(--notion-font-size-caption);
+  text-align: center;
+  padding: 12px 0;
 }
 
 .provider-card-main {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
 
   @media (max-width: 820px) {
-    flex-direction: column;
+    flex-wrap: wrap;
+  }
+}
+
+.provider-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--notion-rounded-sm);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--notion-on-primary);
+  background: linear-gradient(135deg, var(--fluent-accent), var(--fluent-accent-pressed));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+
+  &[data-type='openai'] {
+    background: linear-gradient(135deg, #10a37f, #0c8a6a);
+  }
+  &[data-type='anthropic'] {
+    background: linear-gradient(135deg, #c75c11, #8a3f08);
+  }
+  &[data-type='deepseek'] {
+    background: linear-gradient(135deg, #0f6cbd, #08467d);
+  }
+  &[data-type='qwen'] {
+    background: linear-gradient(135deg, #6b4fd3, #3f2b85);
+  }
+  &[data-type='zhipu'] {
+    background: linear-gradient(135deg, #cc5da8, #8e3b72);
+  }
+  &[data-type='ollama'] {
+    background: linear-gradient(135deg, #475569, #1e293b);
   }
 }
 
@@ -1087,73 +1359,157 @@ onMounted(() => {
 .provider-name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .provider-name {
-  font-size: var(--notion-font-size-body);
+  font-size: var(--notion-font-size-h5);
   font-weight: 600;
   color: var(--notion-ink);
+  letter-spacing: -0.01em;
+  margin-right: 4px;
 }
 
-.provider-type-tag,
-.provider-status-tag {
+.provider-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--notion-font-size-caption);
+  line-height: 1;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: var(--notion-rounded-full);
+  border: 1px solid var(--notion-hairline-soft);
+  background: var(--fluent-surface-3);
+  color: var(--notion-slate);
   flex-shrink: 0;
+}
+
+.provider-chip__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.provider-chip--type {
+  color: var(--fluent-accent);
+  background: var(--fluent-accent-subtle);
+  border-color: transparent;
+}
+
+.provider-chip--success {
+  color: var(--notion-semantic-success);
+  background: var(--fluent-surface-success-subtle);
+  border-color: transparent;
+}
+
+.provider-chip--muted {
+  color: var(--notion-stone);
+  background: var(--fluent-bg-canvas-subtle);
+  border-color: transparent;
+}
+
+.provider-chip--danger {
+  color: var(--notion-semantic-error);
+  background: var(--fluent-surface-danger-subtle);
+  border-color: transparent;
 }
 
 .provider-meta {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.provider-url,
-.provider-model {
-  font-size: var(--notion-font-size-caption);
-  color: var(--notion-steel);
+.provider-meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--notion-font-size-body-sm);
+  min-width: 0;
+}
+
+.provider-meta-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--notion-muted);
+  flex-shrink: 0;
+}
+
+.provider-meta-label {
+  color: var(--notion-slate);
+  font-weight: 500;
+}
+
+.provider-meta-value {
+  color: var(--notion-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .provider-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
   flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .test-status {
-  margin-top: var(--notion-spacing-sm);
+  margin-top: var(--notion-spacing-md);
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: var(--notion-font-size-caption);
+  font-size: var(--notion-font-size-body-sm);
   padding: 8px 12px;
   border-radius: var(--notion-rounded-sm);
+  border: 1px solid transparent;
+}
+
+.test-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
 }
 
 .test-loading {
-  color: var(--notion-charcoal);
+  color: var(--notion-slate);
   background-color: var(--fluent-surface-inset);
+  border-color: var(--notion-hairline-soft);
 }
 
 .test-success {
   color: var(--notion-semantic-success);
   background-color: var(--fluent-surface-success-subtle);
+  border-color: rgba(16, 124, 16, 0.2);
 }
 
 .test-fail {
   color: var(--notion-semantic-error);
   background-color: var(--fluent-surface-danger-subtle);
+  border-color: rgba(196, 43, 28, 0.2);
 }
 
 .settings-card {
+  margin: 5px auto;
+  position: relative;
   border-radius: var(--notion-rounded-xl);
   padding: var(--notion-spacing-xl);
+  background: var(--fluent-surface-2);
+  border: 1px solid var(--notion-hairline-soft);
+  box-shadow: var(--notion-shadow-subtle);
 }
 
 .settings-form {
@@ -1168,7 +1524,8 @@ onMounted(() => {
   :deep(.el-form-item__label) {
     color: var(--notion-slate);
     font-size: var(--notion-font-size-body-sm);
-    font-weight: 400;
+    font-weight: 500;
+    line-height: var(--notion-line-height-body-sm);
   }
 }
 
@@ -1200,13 +1557,20 @@ onMounted(() => {
 .settings-actions-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: var(--notion-spacing-sm);
+  align-items: center;
+  gap: 10px;
+  margin-top: var(--notion-spacing-xl);
+  padding-top: var(--notion-spacing-md);
+  border-top: 1px solid var(--notion-hairline-soft);
 }
 
 .form-hint {
   font-size: var(--notion-font-size-caption);
   color: var(--notion-steel);
   line-height: var(--notion-line-height-caption);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .provider-model-control {
@@ -1264,28 +1628,69 @@ onMounted(() => {
 .cache-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--notion-spacing-xl);
+  gap: var(--notion-spacing-md);
 
-  @media (max-width: 640px) {
+  @media (max-width: 720px) {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
 .cache-stat-item {
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: var(--notion-spacing-md);
+  border-radius: var(--notion-rounded-md);
+  background: var(--fluent-surface-3);
+  border: 1px solid var(--notion-hairline-soft);
+  transition:
+    border-color var(--notion-transition-fast),
+    background-color var(--notion-transition-fast);
+}
+
+.cache-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--notion-rounded-sm);
+  background: var(--fluent-accent-subtle);
+  color: var(--fluent-accent);
+  flex-shrink: 0;
+}
+
+.cache-stat-icon--success {
+  background: var(--fluent-surface-success-subtle);
+  color: var(--notion-semantic-success);
+}
+
+.cache-stat-body {
+  display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .stat-label-text {
   font-size: var(--notion-font-size-caption);
-  color: var(--notion-steel);
+  color: var(--notion-slate);
+  font-weight: 500;
 }
 
 .stat-value {
   font-size: var(--notion-font-size-h5);
   font-weight: 600;
   color: var(--notion-ink);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.stat-value--sm {
+  font-size: var(--notion-font-size-body-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
 }
 
 .stat-green {
@@ -1297,9 +1702,24 @@ onMounted(() => {
 }
 
 .danger-card {
+  margin-top: 10px;
+  position: relative;
   border-radius: var(--notion-rounded-xl);
   padding: var(--notion-spacing-lg) var(--notion-spacing-xl);
-  border-color: rgba(196, 43, 28, 0.24);
+  background: var(--fluent-surface-danger-subtle);
+  border: 1px solid rgba(196, 43, 28, 0.28);
+  box-shadow: var(--notion-shadow-subtle);
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--notion-semantic-error);
+  }
 }
 
 .danger-content {
@@ -1316,8 +1736,28 @@ onMounted(() => {
 
 .danger-info {
   display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.danger-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--notion-rounded-sm);
+  background: rgba(196, 43, 28, 0.12);
+  color: var(--notion-semantic-error);
+  flex-shrink: 0;
+}
+
+.danger-text {
+  display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .danger-label {
@@ -1328,7 +1768,8 @@ onMounted(() => {
 
 .danger-desc {
   font-size: var(--notion-font-size-caption);
-  color: var(--notion-steel);
+  color: var(--notion-slate);
+  line-height: 1.45;
 }
 
 .settings-divider {
@@ -1342,10 +1783,11 @@ onMounted(() => {
     background-color: var(--fluent-surface-3);
     border: 1px solid var(--notion-hairline);
     box-shadow: var(--notion-shadow-modal);
+    overflow: hidden;
   }
 
   .el-dialog__header {
-    padding: var(--notion-spacing-lg) var(--notion-spacing-xl) 0;
+    padding: var(--notion-spacing-lg) var(--notion-spacing-xl) var(--notion-spacing-md);
   }
 
   .el-dialog__title {
@@ -1355,12 +1797,13 @@ onMounted(() => {
   }
 
   .el-dialog__body {
-    padding: var(--notion-spacing-lg) var(--notion-spacing-xl);
+    padding: var(--notion-spacing-md) var(--notion-spacing-xl) var(--notion-spacing-lg);
   }
 
   .el-dialog__footer {
     padding: var(--notion-spacing-md) var(--notion-spacing-xl) var(--notion-spacing-lg);
-    border-top: 1px solid var(--notion-hairline);
+    border-top: 1px solid var(--notion-hairline-soft);
+    background: var(--fluent-bg-canvas-subtle);
   }
 }
 
@@ -1370,22 +1813,58 @@ onMounted(() => {
     background-color: var(--fluent-surface-3);
     border: 1px solid var(--notion-hairline);
     box-shadow: var(--notion-shadow-modal);
+    overflow: hidden;
   }
 
   .el-dialog__header {
-    padding: var(--notion-spacing-lg) var(--notion-spacing-xl) 0;
+    padding: var(--notion-spacing-lg) var(--notion-spacing-xl) var(--notion-spacing-md);
   }
 
   .el-dialog__title {
     font-size: var(--notion-font-size-h4);
     font-weight: 600;
     color: var(--notion-ink);
+    letter-spacing: -0.01em;
   }
 
   .el-dialog__body {
     padding: var(--notion-spacing-md) var(--notion-spacing-xl) var(--notion-spacing-lg);
     max-height: 65vh;
     overflow-y: auto;
+  }
+}
+
+// =====================================================================
+//  Dark mode refinements are applied in a non-scoped style block below.
+// =====================================================================
+</style>
+
+<style lang="scss">
+// =====================================================================
+//  Global dark-mode polish for the Settings page.
+//  (Kept non-scoped so html.dark selectors apply cleanly.)
+// =====================================================================
+html.dark .settings-view {
+  .settings-hero-copy::after {
+    background: radial-gradient(circle, rgba(76, 194, 255, 0.18), transparent 65%);
+  }
+
+  .settings-summary-card {
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.36),
+      0 4px 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .provider-avatar {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .cache-stat-item {
+    background: var(--fluent-bg-canvas-subtle);
+  }
+
+  .provider-notice {
+    background: rgba(76, 194, 255, 0.08);
   }
 }
 </style>

@@ -22,7 +22,7 @@ const router = useRouter()
           <svg class="cta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>
-          <span>从本地导入整合包</span>
+          <span>本地生成</span>
         </ElButton>
         <ElButton
           type="primary"
@@ -34,7 +34,7 @@ const router = useRouter()
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
-          <span>在线搜索整合包</span>
+          <span>在线搜索</span>
         </ElButton>
       </div>
     </section>

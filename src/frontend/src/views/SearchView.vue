@@ -32,9 +32,15 @@ onMounted(() => {
   <div class="search-view">
     <section class="search-hero">
       <div class="search-hero-copy">
-        <span class="search-kicker">整合包检索</span>
-        <h2 class="search-title">快速定位待本地化的 Minecraft 整合包</h2>
-        <p class="search-subtitle">使用统一筛选和稳定命令区，先选定目标，再进入后续本地化流程。</p>
+        <div class="search-kicker-row">
+          <span class="search-kicker">在线检索</span>
+          <span class="dev-badge" title="该功能尚在开发中，部分能力可能尚未完成">
+            <span class="dev-badge-dot" aria-hidden="true"></span>
+            此功能尚在开发中
+          </span>
+        </div>
+        <h2 class="search-title">翻译补丁检索</h2>
+        <p class="search-subtitle">请选择正确的整合包与游戏版本</p>
       </div>
       <div class="search-summary-card">
         <span class="summary-label">当前状态</span>
@@ -145,6 +151,38 @@ onMounted(() => {
   text-transform: uppercase;
   color: var(--fluent-accent);
   font-weight: $font-weight-semibold;
+}
+
+.search-kicker-row {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-sm;
+  flex-wrap: wrap;
+}
+
+.dev-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: $font-size-caption;
+  line-height: 1.4;
+  font-weight: $font-weight-semibold;
+  color: $color-warning;
+  background: rgba($color-warning, 0.14);
+  border: 1px solid rgba($color-warning, 0.45);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dev-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: $color-warning;
+  box-shadow: 0 0 0 3px rgba($color-warning, 0.18);
+  flex-shrink: 0;
 }
 
 .search-title {

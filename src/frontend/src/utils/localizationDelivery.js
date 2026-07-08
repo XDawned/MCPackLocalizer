@@ -1,11 +1,11 @@
 const AREA_META = {
   mod_lang: {
-    label: '模组语言文件',
-    description: '标准模组语言键值，通常导出为资源包 assets 路径。',
+    label: '模组翻译',
+    description: '内容较多，推荐直接使用 i18n 模组',
     color: ''
   },
   ftb_quests: {
-    label: 'FTB 任务原文',
+    label: 'FTB 任务翻译',
     description: '直接回写 FTB Quests 的 quests/*.snbt 任务文件。',
     color: 'success'
   },

@@ -42,7 +42,7 @@ const paginatedMods = computed(() => {
 
 <template>
   <div class="mod-list-card">
-    <h3 class="card-title">Mod 清单</h3>
+    <h3 class="card-title">补丁清单</h3>
 
     <ElEmpty
       v-if="!hasSelectedVersion && !tableLoading"

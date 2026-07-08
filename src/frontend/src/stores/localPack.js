@@ -17,6 +17,14 @@ const FLOW_STAGE = {
   FAILED: 'failed',
 }
 
+const DEFAULT_EXCLUDED_AREA_TYPES = ['mod_lang']
+
+function getDefaultSelectedAreaTypes(areas) {
+  return areas
+    .filter(area => !DEFAULT_EXCLUDED_AREA_TYPES.includes(area.type))
+    .map(area => area.type)
+}
+
 function normalizeErrorMessage(error, fallbackMessage) {
   const detail = error?.response?.data?.detail
   const message = error?.message
@@ -92,7 +100,7 @@ export const useLocalPackStore = defineStore('localPack', () => {
     scanResult.value = data
     areas.value = data.areas || []
     selectableAreas.value = (data.areas || []).filter(a => a.count > 0)
-    selectedAreas.value = selectableAreas.value.map(a => a.type)
+    selectedAreas.value = getDefaultSelectedAreaTypes(selectableAreas.value)
     minecraftRoot.value = data.minecraft_root || discoverResult.value?.minecraft_root || ''
     workRoot.value = data.work_root || data.real_path || ''
     workRootSource.value = data.work_root_source || ''
@@ -200,7 +208,7 @@ export const useLocalPackStore = defineStore('localPack', () => {
       areas.value = Array.isArray(data) ? data : data.areas || []
       selectableAreas.value = areas.value.filter(a => a.count > 0)
       if (!selectedAreas.value.length) {
-        selectedAreas.value = selectableAreas.value.map(a => a.type)
+        selectedAreas.value = getDefaultSelectedAreaTypes(selectableAreas.value)
       }
       return areas.value
     } catch (e) {

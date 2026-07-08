@@ -97,43 +97,6 @@ const scanAreaBadges = computed(() => {
   }))
 })
 
-const kubejsAvailableTypes = computed(() => {
-  return localPackStore.selectableAreas
-    .map(area => area.type)
-    .filter(type => KUBEJS_AREA_TYPES.includes(type))
-})
-
-const hasKubejsAreas = computed(() => kubejsAvailableTypes.value.length > 0)
-const hasFtbLangArea = computed(() => localPackStore.selectableAreas.some(area => area.type === 'ftbquests_lang'))
-const hasFtbQuestSourceArea = computed(() => localPackStore.selectableAreas.some(area => area.type === 'ftb_quests'))
-const hasFtbPriorityChoice = computed(() => hasFtbLangArea.value && hasFtbQuestSourceArea.value)
-const includeI18nUpdateMod = computed(() => asBooleanSetting(settingsStore.settings?.include_i18n_update_mod, false))
-
-function setAreaSelection(types = [], enabled = true) {
-  const available = localPackStore.selectableAreas.map(area => area.type)
-  const nextSelected = new Set(localPackStore.selectedAreas)
-
-  types.forEach(type => {
-    if (enabled) {
-      nextSelected.add(type)
-    } else {
-      nextSelected.delete(type)
-    }
-  })
-
-  localPackStore.selectedAreas = available.filter(type => nextSelected.has(type))
-}
-
-const includeKubejsAreas = computed({
-  get() {
-    if (!hasKubejsAreas.value) return false
-    return kubejsAvailableTypes.value.every(type => localPackStore.selectedAreas.includes(type))
-  },
-  set(value) {
-    setAreaSelection(kubejsAvailableTypes.value, value)
-  }
-})
-
 const preferFtbLangTree = computed({
   get() {
     if (!hasFtbPriorityChoice.value) return false
@@ -726,18 +689,8 @@ onMounted(async () => {
 
       <div class="setting-row">
         <div class="setting-info">
-          <span class="setting-label">包含 KubeJS 相关资源</span>
-          <span class="setting-desc">批量控制 `kubejs_json`、`kubejs_lang`、`kubejs_js` 区域。关闭后这些区域不会进入本次翻译任务。</span>
-        </div>
-        <div class="setting-control">
-          <ElSwitch v-model="includeKubejsAreas" :disabled="!hasKubejsAreas" active-color="var(--notion-primary)"/>
-        </div>
-      </div>
-
-      <div class="setting-row">
-        <div class="setting-info">
-          <span class="setting-label">优先按 FTBQuests 语言树路径处理</span>
-          <span class="setting-desc">仅在同时扫描到 `ftb_quests` 与 `ftbquests_lang` 时可切换。开启后优先写入 `ftbquests/lang/zh_cn`，关闭后改回原始 quests SNBT 路径。</span>
+          <span class="setting-label">优先�?FTBQuests 语言树路径处�?/span>
+          <span class="setting-desc">开启后优先写入 `ftbquests/lang/zh_cn`，默认直接覆�?SNBT 任务原文</span>
         </div>
         <div class="setting-control">
           <ElSwitch v-model="preferFtbLangTree" :disabled="!hasFtbPriorityChoice" active-color="var(--notion-primary)"/>
@@ -746,8 +699,8 @@ onMounted(async () => {
 
       <div class="setting-row">
         <div class="setting-info">
-          <span class="setting-label">交付时附带 I18nUpdateMod</span>
-          <span class="setting-desc">对应全局设置 `include_i18n_update_mod`，影响后续补丁目录生成时是否附带辅助模组文件。</span>
+          <span class="setting-label">交付时附�?I18nUpdateMod</span>
+          <span class="setting-desc">对应全局设置 `include_i18n_update_mod`，影响后续补丁目录生成时是否附带辅助模组文件</span>
         </div>
         <div class="setting-control">
           <ElSwitch
@@ -760,8 +713,7 @@ onMounted(async () => {
       </div>
 
       <p class="delivery-note">
-        当前页只控制前端选择与交付偏好；补丁目录生成阶段仍会基于后端返回的真实 `area_type`、`target_strategy` 与 `target_path` 落到 `config/`、`kubejs/`、`mods/`、`resourcepacks/` 等目录。
-      </p>
+        当前页只控制前端选择与交付偏好；补丁目录生成阶段仍会基于后端返回的真�?`area_type`、`target_strategy` �?`target_path` 落到 `config/`、`kubejs/`、`mods/`、`resourcepacks/` 等目录�?      </p>
 
       <div class="areas-embed">
         <TranslatableAreas />
@@ -781,14 +733,14 @@ onMounted(async () => {
       <!-- Provider 选择 -->
       <div class="setting-row">
         <div class="setting-info">
-          <span class="setting-label">AI 提供商</span>
-          <span class="setting-desc">选择已配置的 AI 提供商，或前往设置页添加</span>
+          <span class="setting-label">AI 提供�?/span>
+          <span class="setting-desc">选择已配置的 AI 提供商，或前往设置页添�?/span>
         </div>
         <div class="setting-control setting-control--provider">
           <ElSelect
               v-model="selectedProviderId"
               class="notion-select"
-              placeholder="选择提供商"
+              placeholder="选择提供�?
               clearable
           >
             <ElOption
