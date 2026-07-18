@@ -1,7 +1,7 @@
 # coding:utf-8
-from PyQt5.QtCore import Qt, pyqtSignal, QUrl
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import QWidget, QLabel, QFileDialog
+from PyQt6.QtCore import Qt, pyqtSignal, QUrl
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import QWidget, QLabel, QFileDialog
 from qfluentwidgets import FluentIcon as FIF, OptionsConfigItem
 from qfluentwidgets import InfoBar
 from qfluentwidgets import (SettingCardGroup, SwitchSettingCard, OptionsSettingCard, PushSettingCard,
@@ -131,6 +131,15 @@ class SettingInterface(ScrollArea):
             cfg.secretKey,
             self.translateGroup
         )
+        self.localServiceUrlCard = PushEditSettingCard(
+            self.tr('保存'),
+            FIF.BRUSH,
+            self.tr('本地推理服务地址'),
+            self.tr('独立 uv 环境运行的 FastAPI 服务，默认 http://127.0.0.1:8765'),
+            self.tr('http://127.0.0.1:8765'),
+            cfg.localServiceUrl,
+            self.translateGroup
+        )
 
         # personalization
         self.personalGroup = SettingCardGroup(
@@ -223,7 +232,7 @@ class SettingInterface(ScrollArea):
 
     def __initWidget(self):
         self.resize(1000, 800)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setViewportMargins(0, 80, 0, 20)
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
@@ -253,6 +262,7 @@ class SettingInterface(ScrollArea):
         self.translateGroup.addSettingCard(self.modelNameCard)
         self.translateGroup.addSettingCard(self.orgIdCard)
         self.translateGroup.addSettingCard(self.secretKeyCard)
+        self.translateGroup.addSettingCard(self.localServiceUrlCard)
 
         self.personalGroup.addSettingCard(self.themeCard)
         self.personalGroup.addSettingCard(self.themeColorCard)
@@ -321,7 +331,7 @@ class SettingInterface(ScrollArea):
             InfoBar.success(
                 title=self.tr(''),
                 content=self.tr(activate.activateInfo),
-                orient=Qt.Horizontal,
+                orient=Qt.Orientation.Horizontal,
                 isClosable=False,
                 position=InfoBarPosition.TOP_LEFT,
                 duration=2000,
@@ -333,7 +343,7 @@ class SettingInterface(ScrollArea):
             InfoBar.warning(
                 title=self.tr(''),
                 content=self.tr(activate.activateInfo),
-                orient=Qt.Horizontal,
+                orient=Qt.Orientation.Horizontal,
                 isClosable=False,
                 position=InfoBarPosition.TOP_LEFT,
                 duration=2000,
@@ -367,6 +377,7 @@ class SettingInterface(ScrollArea):
             self.modelNameCard.setVisible(False)
             self.appKeyCard.setVisible(True)
             self.appSecretCard.setVisible(True)
+            self.localServiceUrlCard.setVisible(False)
         elif option.value == '1':
             self.appKeyCard.setVisible(False)
             self.appSecretCard.setVisible(False)
@@ -374,6 +385,7 @@ class SettingInterface(ScrollArea):
             self.orgIdCard.setVisible(False)
             self.openaiUrlCard.setVisible(False)
             self.modelNameCard.setVisible(False)
+            self.localServiceUrlCard.setVisible(True)
         elif option.value == '2':
             self.appKeyCard.setVisible(False)
             self.appSecretCard.setVisible(False)
@@ -381,4 +393,5 @@ class SettingInterface(ScrollArea):
             self.orgIdCard.setVisible(True)
             self.openaiUrlCard.setVisible(True)
             self.modelNameCard.setVisible(True)
+            self.localServiceUrlCard.setVisible(False)
         self.translateGroup.adjustSize()

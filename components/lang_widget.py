@@ -2,10 +2,10 @@
 import threading
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QKeySequence
-from PyQt5.QtWidgets import QVBoxLayout, QWidget, QTableWidgetItem, QHBoxLayout, QFrame, QLabel, \
-    QSpacerItem, QSizePolicy, QShortcut, QApplication
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut
+from PyQt6.QtWidgets import QVBoxLayout, QWidget, QTableWidgetItem, QHBoxLayout, QFrame, QLabel, \
+    QSpacerItem, QSizePolicy, QApplication
 from qfluentwidgets import TableWidget, TextEdit, PushButton, SearchLineEdit, LineEdit, ScrollArea, ExpandLayout, \
     FluentIcon, InfoBar
 
@@ -87,7 +87,7 @@ class BrowseLangWidget(Frame):
             for j in range(2):
                 item_ = QTableWidgetItem(item[j])
                 if j < 2:
-                    item_.setFlags(item_.flags() & ~Qt.ItemIsEditable)
+                    item_.setFlags(item_.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(i, j, item_)
 
     def handleCellChanged(self, row, column):
@@ -123,7 +123,7 @@ class ReviewLangWidget(ScrollArea):
         self.init_ui()
 
     def init_ui(self):
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setViewportMargins(0, 0, 0, 0)
         self.scrollWidget = QWidget()
         self.scrollWidget.setStyleSheet('background-color: transparent')
@@ -180,7 +180,7 @@ class ReviewLangWidget(ScrollArea):
         self.current_edit_info.setFixedHeight(40)
         button_layout.addWidget(self.index_label)
         button_layout.addWidget(next_button)
-        button_layout.addItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        button_layout.addItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         jump_label = QLabel(self.tr('跳转到'), button_box)
         jump_label.setFixedHeight(40)
         button_layout.addWidget(jump_label)

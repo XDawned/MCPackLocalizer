@@ -30,6 +30,9 @@ class Config(QConfig):
     secretKey = ConfigItem("TranslateApi", "SecretKey", 'Your SecretKey')
     openaiUrl = ConfigItem("OpenaiUrl", "OpenaiUrl", 'https://api.openai.com/v1')
     modelName = ConfigItem("ModelName", "ModelName", 'gpt-3.5-turbo')
+    # 本地推理服务地址（独立 uv 环境运行的 FastAPI 服务）
+    localServiceUrl = ConfigItem("LocalService", "LocalServiceUrl", 'http://127.0.0.1:8765')
+    localServiceAutoStart = ConfigItem("LocalService", "AutoStart", False, BoolValidator())
 
     activateCode = ConfigItem("Activate", "ActivateCode", 'Your ActivateCode')
     # 游戏版本

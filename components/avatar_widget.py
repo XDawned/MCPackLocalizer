@@ -1,6 +1,6 @@
 # coding: utf-8
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtGui import QPainter, QImage, QBrush, QColor, QFont
+from PyQt6.QtCore import Qt, QRect
+from PyQt6.QtGui import QPainter, QImage, QBrush, QColor, QFont
 from qfluentwidgets import NavigationWidget, isDarkTheme
 
 
@@ -10,14 +10,14 @@ class AvatarWidget(NavigationWidget):
     def __init__(self, image_path, parent=None):
         super().__init__(isSelectable=False, parent=parent)
         self.avatar = QImage(image_path).scaled(
-            24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
     def paintEvent(self, e):
         painter = QPainter(self)
         painter.setRenderHints(
-            QPainter.SmoothPixmapTransform | QPainter.Antialiasing)
+            QPainter.RenderHint.SmoothPixmapTransform | QPainter.RenderHint.Antialiasing)
 
-        painter.setPen(Qt.NoPen)
+        painter.setPen(Qt.PenStyle.NoPen)
 
         if self.isPressed:
             painter.setOpacity(0.7)
@@ -35,8 +35,8 @@ class AvatarWidget(NavigationWidget):
         painter.translate(-8, -6)
 
         if not self.isCompacted:
-            painter.setPen(Qt.white if isDarkTheme() else Qt.black)
+            painter.setPen(Qt.GlobalColor.white if isDarkTheme() else Qt.GlobalColor.black)
             font = QFont('Segoe UI')
             font.setPixelSize(14)
             painter.setFont(font)
-            painter.drawText(QRect(44, 0, 255, 36), Qt.AlignVCenter, 'XDawned')
+            painter.drawText(QRect(44, 0, 255, 36), Qt.AlignmentFlag.AlignVCenter, 'XDawned')

@@ -2,10 +2,10 @@
 import json
 import os.path
 
-from PyQt5.QtCore import Qt, pyqtSignal, QFile, QDir
-from PyQt5.QtGui import QKeySequence
-from PyQt5.QtWidgets import QVBoxLayout, QFileSystemModel, QLabel, QFileDialog, \
-    QItemDelegate, QCheckBox, QScrollArea, QInputDialog, QShortcut, QMenu
+from PyQt6.QtCore import Qt, pyqtSignal, QFile, QDir
+from PyQt6.QtGui import QKeySequence, QShortcut, QFileSystemModel
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QFileDialog, \
+    QItemDelegate, QCheckBox, QScrollArea, QInputDialog, QMenu
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import TreeView, Action, RoundMenu, MessageBox, LineEdit, InfoBar, \
     InfoBarPosition
@@ -21,15 +21,15 @@ class CheckBoxDelegate(QItemDelegate):
         return checkbox
 
     def setEditorData(self, editor, index):
-        value = index.data(Qt.CheckStateRole)
-        if value == Qt.Checked:
+        value = index.data(Qt.ItemDataRole.CheckStateRole)
+        if value == Qt.CheckState.Checked:
             editor.setChecked(True)
         else:
             editor.setChecked(False)
 
     def setModelData(self, editor, model, index):
-        value = Qt.Checked if editor.isChecked() else Qt.Unchecked
-        model.setData(index, value, Qt.CheckStateRole)
+        value = Qt.CheckState.Checked if editor.isChecked() else Qt.CheckState.Unchecked
+        model.setData(index, value, Qt.ItemDataRole.CheckStateRole)
 
 
 class FileBrowser(QScrollArea):
@@ -78,7 +78,7 @@ class FileBrowser(QScrollArea):
         shortcut_previous_file.activated.connect(lambda: self.handle_select_file(-1))
         shortcut_next_file.activated.connect(lambda: self.handle_select_file(1))
         # 添加右键菜单
-        self.tree_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_view.customContextMenuRequested.connect(self.show_context_menu)
 
 
@@ -93,7 +93,7 @@ class FileBrowser(QScrollArea):
         if index.isValid():
             file_path = self.model.filePath(index)
             context_menu = self.create_context_menu() if os.path.isfile(file_path) else self.create_context_menu(False)
-            context_menu.exec_(self.tree_view.viewport().mapToGlobal(point))
+            context_menu.exec(self.tree_view.viewport().mapToGlobal(point))
 
     def create_context_menu(self, is_file=True):
         # 创建右键菜单
@@ -134,7 +134,7 @@ class FileBrowser(QScrollArea):
         if index.isValid():
             old_path = self.model.filePath(index)
             new_name, ok = QInputDialog.getText(self, "重命名", "请输入新的文件名：",
-                                                LineEdit.Normal, self.model.fileName(index))
+                                                LineEdit.EchoMode.Normal, self.model.fileName(index))
             if ok and new_name:
                 new_path = self.model.filePath(index.parent()) + "/" + new_name
                 file = QFile(old_path)
@@ -142,7 +142,7 @@ class FileBrowser(QScrollArea):
                     InfoBar.success(
                         title=self.tr('成功'),
                         content=self.tr("文件重命名成功！"),
-                        orient=Qt.Horizontal,
+                        orient=Qt.Orientation.Horizontal,
                         isClosable=True,
                         position=InfoBarPosition.BOTTOM_RIGHT,
                         duration=1500,
@@ -152,7 +152,7 @@ class FileBrowser(QScrollArea):
                     InfoBar.warning(
                         title=self.tr('错误'),
                         content=self.tr("文件重命名失败！"),
-                        orient=Qt.Horizontal,
+                        orient=Qt.Orientation.Horizontal,
                         isClosable=True,
                         position=InfoBarPosition.BOTTOM_RIGHT,
                         duration=1500,
@@ -164,14 +164,14 @@ class FileBrowser(QScrollArea):
         if index.isValid():
             path = self.model.filePath(index)
             new_folder_name, ok = QInputDialog.getText(self, "新建文件夹", "请输入文件夹名称：",
-                                                       LineEdit.Normal, "New Folder")
+                                                       LineEdit.EchoMode.Normal, "New Folder")
             if ok and new_folder_name:
                 new_folder_path = path + "/" + new_folder_name
                 if self.model.mkdir(index, new_folder_path):
                     InfoBar.success(
                         title=self.tr('成功'),
                         content=self.tr("文件夹创建成功！"),
-                        orient=Qt.Horizontal,
+                        orient=Qt.Orientation.Horizontal,
                         isClosable=True,
                         position=InfoBarPosition.BOTTOM_RIGHT,
                         duration=1500,
@@ -181,7 +181,7 @@ class FileBrowser(QScrollArea):
                     InfoBar.warning(
                         title=self.tr('错误'),
                         content=self.tr("文件创建失败！"),
-                        orient=Qt.Horizontal,
+                        orient=Qt.Orientation.Horizontal,
                         isClosable=True,
                         position=InfoBarPosition.BOTTOM_RIGHT,
                         duration=1500,
@@ -200,7 +200,7 @@ class FileBrowser(QScrollArea):
                     InfoBar.success(
                         title=self.tr('成功'),
                         content=self.tr("删除成功！"),
-                        orient=Qt.Horizontal,
+                        orient=Qt.Orientation.Horizontal,
                         isClosable=True,
                         position=InfoBarPosition.BOTTOM_RIGHT,
                         duration=1500,
@@ -210,7 +210,7 @@ class FileBrowser(QScrollArea):
                     InfoBar.warning(
                         title=self.tr('错误'),
                         content=self.tr("文件删除失败！"),
-                        orient=Qt.Horizontal,
+                        orient=Qt.Orientation.Horizontal,
                         isClosable=True,
                         position=InfoBarPosition.BOTTOM_RIGHT,
                         duration=1500,
@@ -248,7 +248,7 @@ class FileBrowser(QScrollArea):
                 InfoBar.error(
                     title=self.tr('错误'),
                     content=self.tr(str(e)),
-                    orient=Qt.Horizontal,
+                    orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.BOTTOM_RIGHT,
                     duration=1500,
@@ -258,7 +258,7 @@ class FileBrowser(QScrollArea):
                 InfoBar.success(
                     title=self.tr('成功'),
                     content=self.tr("转化成功！"),
-                    orient=Qt.Horizontal,
+                    orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.BOTTOM_RIGHT,
                     duration=1500,
@@ -287,7 +287,7 @@ class FileBrowser(QScrollArea):
                 InfoBar.error(
                     title=self.tr('错误'),
                     content=self.tr(str(e)),
-                    orient=Qt.Horizontal,
+                    orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.BOTTOM_RIGHT,
                     duration=1500,
@@ -297,7 +297,7 @@ class FileBrowser(QScrollArea):
                 InfoBar.success(
                     title=self.tr('成功'),
                     content=self.tr("转化成功！"),
-                    orient=Qt.Horizontal,
+                    orient=Qt.Orientation.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.BOTTOM_RIGHT,
                     duration=1500,

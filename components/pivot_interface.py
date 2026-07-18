@@ -1,5 +1,5 @@
 # coding:utf-8
-from PyQt5.QtWidgets import QWidget, QStackedWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QStackedWidget, QVBoxLayout
 from qfluentwidgets import Pivot, qrouter
 
 from common.style_sheet import StyleSheet

@@ -1,8 +1,10 @@
 import re
+import sys
 
 from qfluentwidgets import TextEdit
-from PyQt5.Qt import *
-import sys
+from PyQt6.QtCore import QRegularExpression  # noqa: F401  # placeholder if needed later
+from PyQt6.QtGui import (QColor, QFont, QSyntaxHighlighter, QTextCharFormat,  # noqa: F401
+                          QTextCursor, QTextDocument)
 
 
 class MinecraftTextFormat:

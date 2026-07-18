@@ -1,9 +1,9 @@
 # coding:utf-8
 from typing import Union
 
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QIcon, QFont
-from PyQt5.QtWidgets import QPushButton
+from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QIcon, QFont
+from PyQt6.QtWidgets import QPushButton
 from qfluentwidgets import SettingCard, InfoBar, LineEdit
 from qfluentwidgets.common.config import qconfig, ConfigItem
 from qfluentwidgets.common.icon import FluentIconBase
@@ -29,15 +29,15 @@ class PushEditSettingCard(SettingCard):
         else:
             self.lineEdit.setText(edit)
 
-        self.lineEdit.setFocusPolicy(Qt.ClickFocus)
+        self.lineEdit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.lineEdit.setMinimumWidth(350)
         self.lineEdit.setMinimumHeight(30)
         self.lineEdit.setFont(QFont("Arial", 9))
-        self.hBoxLayout.addWidget(self.lineEdit, 0, Qt.AlignRight)
+        self.hBoxLayout.addWidget(self.lineEdit, 0, Qt.AlignmentFlag.AlignRight)
         self.hBoxLayout.addSpacing(16)
 
         self.button = QPushButton(text, self)
-        self.hBoxLayout.addWidget(self.button, 0, Qt.AlignCenter)
+        self.hBoxLayout.addWidget(self.button, 0, Qt.AlignmentFlag.AlignCenter)
         self.hBoxLayout.addSpacing(32)
         self.button.clicked.connect(self.__onValueChanged)
 

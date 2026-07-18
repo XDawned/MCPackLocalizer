@@ -11,4 +11,9 @@
 /整合包本地化工具.spec
 /resource/controls
 /models/
+/inference_service/.venv/
+/inference_service/models/
+/inference_service/uv.lock
+.kilo
+/node_modules
 

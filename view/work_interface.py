@@ -1,9 +1,9 @@
 # coding:utf-8
 import os
 
-from PyQt5.QtCore import Qt, QUrl
-from PyQt5.QtGui import QDesktopServices, QKeySequence
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFileDialog, QShortcut, QLabel
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices, QKeySequence, QShortcut
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFileDialog, QLabel
 from qfluentwidgets import ScrollArea, InfoBar, RoundMenu, Action, FluentIcon, StateToolTip, \
     ProgressBar, TextEdit, MessageBox, CommandBar, TransparentDropDownPushButton, setFont
 
@@ -41,7 +41,7 @@ class WorkInterface(ScrollArea):
         self.__initWidget()
 
     def __initWidget(self):
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWidget(self.view)
         self.setWidgetResizable(True)
 
@@ -108,7 +108,7 @@ class WorkInterface(ScrollArea):
 
     def create_command_bar(self):
         bar = CommandBar(self)
-        bar.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         # 创建下拉菜单
         menu_save = RoundMenu(parent=self)
         menu_pre_trans = RoundMenu(parent=self)

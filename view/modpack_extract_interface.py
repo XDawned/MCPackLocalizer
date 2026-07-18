@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 
 import snbtlib
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QLabel, QFileDialog
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QLabel, QFileDialog
 from qfluentwidgets import FluentIcon as FIF, ProgressBar
 from qfluentwidgets import InfoBar
 from qfluentwidgets import (SettingCardGroup, PushSettingCard, ScrollArea, ExpandLayout,
@@ -84,8 +84,7 @@ class ModpackExtractInterface(ScrollArea):
         self.__initWidget()
 
     def __initWidget(self):
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setViewportMargins(0, 80, 0, 20)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
 

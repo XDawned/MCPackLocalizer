@@ -15,14 +15,13 @@ from openai import OpenAI
 import ahocorasick
 import requests
 import snbtlib
-from PyQt5.QtCore import QThread, pyqtSignal, QObject
+from PyQt6.QtCore import QThread, pyqtSignal, QObject
 from nbt import nbt
 from nbt.nbt import TAG
 from func_timeout import func_set_timeout
 
-from transformers import MarianTokenizer, MarianMTModel
-
 from common.config import cfg
+from common.local_service import LocalInferenceClient
 from common.terms_dict import TERMS
 
 MAGIC_WORD = r'{xdawned}'  # 先在术语库中记录，保证其不被翻译
@@ -382,13 +381,12 @@ class Translator(QObject):
     to_lang = ''
     app_key = ''
     app_secret = ''
-    model = None
-    tokenizer = None
     access_token = None
     original = cfg.get(cfg.keepOriginal)
     spec_format = pyqtSignal(str)
     client = None
     model_name = cfg.get(cfg.modelName)
+    local_client: LocalInferenceClient | None = None
 
     def __init__(self, from_lang: str, to_lang: str, key: str, secret: str):
         super().__init__()
@@ -397,7 +395,7 @@ class Translator(QObject):
         self.app_key = key
         self.app_secret = secret
         if self.api == '1':
-            self.init_local_model()  # 加载模型
+            self.init_local_model()  # 检查本地推理服务可用性
 
     @staticmethod
     def bracket(m: re.Match):
@@ -414,7 +412,7 @@ class Translator(QObject):
         if line.find(r'{\"') != -1:
             return None
         line = line.replace('\\\\&', 'PPP')
-        if self.model is None:
+        if self.local_client is None:
             pattern = re.compile(r'&([a-z,0-9]|#[0-9,A-F]{6})')
             line = pattern.sub(self.bracket, line)
             self.spec_format.emit('注意:检测到彩色字符已预处理，不保证100%保留')
@@ -426,7 +424,7 @@ class Translator(QObject):
         return line
 
     def post_process(self, text_, translate):
-        if self.model is None:
+        if self.local_client is None:
             pattern = re.compile(r'\[&&([a-z,0-9]|#[0-9,A-F]{6})]')
             translate = pattern.sub(self.debracket, translate)
             text_ = pattern.sub(self.debracket, text_)
@@ -481,18 +479,27 @@ class Translator(QObject):
         return self.post_process(text_, translated_text)
 
     def init_local_model(self):
-        self.model = MarianMTModel.from_pretrained("./models/minecraft-en-zh")
-        self.tokenizer = MarianTokenizer.from_pretrained("./models/minecraft-en-zh")
+        """检查本地推理服务可达性；预处理逻辑仍在服务侧完成。"""
+        from common.local_service import try_auto_start_service
+        try_auto_start_service()
+        self.local_client = LocalInferenceClient(cfg.get(cfg.localServiceUrl))
+        ok, info = self.local_client.health()
+        if not ok:
+            self.spec_format.emit(
+                f"本地推理服务不可达({cfg.get(cfg.localServiceUrl)}): {info}")
+        elif info not in (None, "", "ok"):
+            self.spec_format.emit(f"本地推理服务告警: {info}")
 
     def local_translate(self, text_: str):
-        if not all([self.model, self.tokenizer]):
+        if self.local_client is None:
             self.init_local_model()
         text_process = self.pre_process(text_)
         if text_process is None:
             return text_
-        input_ids = self.tokenizer.encode(text_process, return_tensors="pt")
-        translated = self.model.generate(input_ids, max_length=128)
-        output = self.tokenizer.decode(translated[0], skip_special_tokens=True)
+        try:
+            output = self.local_client.translate(text_process, keep_original=False)
+        except Exception as exc:  # noqa: BLE001
+            return f"翻译出错: {type(exc).__name__}: {exc}"
         return self.post_process(text_, output)
 
     def init_openai_model(self):

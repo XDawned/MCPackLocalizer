@@ -1,7 +1,7 @@
 # coding:utf-8
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QKeySequence
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QApplication, QTreeWidgetItem, QShortcut
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QApplication, QTreeWidgetItem
 from qfluentwidgets import (ScrollArea, SearchLineEdit, InfoBar, TreeWidget)
 
 from common.style_sheet import StyleSheet
@@ -41,7 +41,7 @@ class SearchDictInterface(ScrollArea):
         self.setWidgetResizable(True)
 
         self.vBoxLayout.setSpacing(30)
-        self.vBoxLayout.setAlignment(Qt.AlignTop)
+        self.vBoxLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.vBoxLayout.setContentsMargins(36, 20, 36, 36)
 
         self.update_table({'spawner': ['刷怪笼']})
@@ -118,7 +118,7 @@ class SearchCacheInterface(ScrollArea):
         self.setWidgetResizable(True)
 
         self.vBoxLayout.setSpacing(30)
-        self.vBoxLayout.setAlignment(Qt.AlignTop)
+        self.vBoxLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.vBoxLayout.setContentsMargins(36, 20, 36, 36)
 
         self.update_table({'spawner': ['刷怪笼']})

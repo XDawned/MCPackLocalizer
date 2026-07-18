@@ -2,9 +2,9 @@
 import os
 import sys
 
-from PyQt5.QtCore import Qt, pyqtSignal, QEasingCurve, QUrl
-from PyQt5.QtGui import QIcon, QDesktopServices, QGuiApplication
-from PyQt5.QtWidgets import QApplication, QFrame, QHBoxLayout, QWidget
+from PyQt6.QtCore import Qt, pyqtSignal, QEasingCurve, QUrl
+from PyQt6.QtGui import QIcon, QDesktopServices, QGuiApplication
+from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QWidget
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets import (NavigationInterface, NavigationItemPosition, qrouter, PopUpAniStackedWidget)
 from qframelesswindow import FramelessWindow, StandardTitleBar
@@ -123,10 +123,11 @@ class MainWindow(FramelessWindow):
         self.setWindowIcon(QIcon(f':/images/logo.png'))
         self.setWindowTitle('整合包本地化工具')
         self.titleBar.setObjectName('titleBar')
-        self.titleBar.setAttribute(Qt.WA_StyledBackground)
+        self.titleBar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
 
-        desktop = QApplication.desktop().availableGeometry()
-        w, h = desktop.width(), desktop.height()
+        screen = QGuiApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        w, h = screen_geometry.width(), screen_geometry.height()
         self.move(w // 2 - self.width() // 2, h // 2 - self.height() // 2)
 
         StyleSheet.MAIN_WINDOW.apply(self)
@@ -165,16 +166,13 @@ if __name__ == '__main__':
     if cfg.get(cfg.dpiScale) == "Auto":
         QApplication.setHighDpiScaleFactorRoundingPolicy(
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-        QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     else:
         os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "0"
         os.environ["QT_SCALE_FACTOR"] = str(cfg.get(cfg.dpiScale))
 
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-
     # create application
     app = QApplication(sys.argv)
-    app.setAttribute(Qt.AA_DontCreateNativeWidgetSiblings)
+    app.setAttribute(Qt.ApplicationAttribute.AA_DontCreateNativeWidgetSiblings)
 
     window = MainWindow()
 
@@ -184,4 +182,4 @@ if __name__ == '__main__':
                        screen_geometry.width(), screen_geometry.height() - 40)  # 减去任务栏高度（一般为40）
 
     window.show()
-    app.exec_()
+    app.exec()

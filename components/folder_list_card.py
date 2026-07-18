@@ -1,8 +1,8 @@
 import copy
 from pathlib import Path
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget
 from qfluentwidgets import Dialog, ExpandSettingCard
 from qfluentwidgets import FluentIcon as FIF
 from qfluentwidgets.components.settings.folder_list_setting_card import FolderItem
@@ -19,7 +19,7 @@ class FolderListCard(ExpandSettingCard):
     def __initWidget(self):
         self.addWidget(QWidget())
         self.viewLayout.setSpacing(0)
-        self.viewLayout.setAlignment(Qt.AlignTop)
+        self.viewLayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.viewLayout.setContentsMargins(0, 0, 0, 0)
         for folder in self.folders:
             self.__addFolderItem(folder)
@@ -47,7 +47,7 @@ class FolderListCard(ExpandSettingCard):
                   self.tr(",此操作不删除本地文件")
         w = Dialog(title, content, self.window())
         w.yesSignal.connect(lambda: self.__removeFolder(item))
-        w.exec_()
+        w.exec()
 
     def __removeFolder(self, item: FolderItem):
         if item.folder not in self.folders:
