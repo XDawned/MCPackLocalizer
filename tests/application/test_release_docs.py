@@ -1,5 +1,8 @@
 # [Module: tests.release_docs] [Status: 已完成] [Brief: 验证离线说明的截图完整性与缺图构建失败]
 import base64
+import os
+import subprocess
+import sys
 from html.parser import HTMLParser
 
 import pytest
@@ -63,3 +66,25 @@ def test_incomplete_offline_guide_stops_export(tmp_path, reference, message):
     with pytest.raises(ValueError, match=message):
         export_document(source, destination)
     assert not destination.exists()
+
+
+@pytest.mark.parametrize("missing_image", [False, True])
+def test_export_cli_uses_utf8_with_cp1252_redirected_streams(tmp_path, missing_image):
+    source = tmp_path / "说明.md"
+    source.write_text("# 使用说明\n" + ("\n![截图](缺失.png)\n" if missing_image else ""), encoding="utf-8")
+    destination = tmp_path / "中文 目录/使用说明.html"
+    env = {**os.environ, "PYTHONUTF8": "0", "PYTHONIOENCODING": "cp1252"}
+    result = subprocess.run(
+        [sys.executable, str(SOURCE.parent.parent / "scripts/export_docs.py"),
+         "--source", str(source), "--output", str(destination)],
+        env=env, capture_output=True, text=True, encoding="utf-8", check=False, timeout=30,
+    )
+    assert "UnicodeEncodeError" not in result.stderr
+    if missing_image:
+        assert result.returncode != 0
+        assert "使用说明缺少图片" in result.stderr
+        assert not destination.exists()
+    else:
+        assert result.returncode == 0, result.stderr
+        assert f"已生成离线使用说明：{destination}" in result.stdout
+        assert "<h1>使用说明</h1>" in destination.read_text(encoding="utf-8")

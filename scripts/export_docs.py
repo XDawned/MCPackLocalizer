@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import sys
 from html import escape
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -106,6 +107,9 @@ def export_document(source: Path, destination: Path) -> Path:
 
 
 def main():
+    # Windows 的重定向输出可能使用 cp1252，中文日志统一写为 UTF-8。
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="将使用说明与截图导出为单文件离线 HTML")
     parser.add_argument("--source", type=Path, default=SOURCE, help="Markdown 源文档")
     parser.add_argument("--output", type=Path, default=ROOT / "docs/使用说明.html", help="HTML 输出路径")
