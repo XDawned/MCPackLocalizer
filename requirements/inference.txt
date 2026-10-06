@@ -1,0 +1,3 @@
+# [Module: cli.runtime] [Status: 开发中] [Brief: 单独安装到推理运行环境的绑定版本]
+llama-cpp-python==0.3.35
+pyahocorasick>=2.1

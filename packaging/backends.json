@@ -1,0 +1,43 @@
+{
+  "python": {
+    "version": "3.12.10",
+    "url": "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip",
+    "sha256": "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3"
+  },
+  "llama_cpp_python": "0.3.35",
+  "backends": {
+    "cpu": {
+      "url": "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35/llama_cpp_python-0.3.35-py3-none-win_amd64.whl",
+      "sha256": "31590ea000d5aff6f05f1e428048e72318a83709288159a5bd4dabec530080bb",
+      "library": "ggml-cpu",
+      "requirements": "Windows x64；CPU 必须支持该构建使用的指令集，发布前验证目标机器。"
+    },
+    "vulkan": {
+      "url": "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-vulkan/llama_cpp_python-0.3.35-py3-none-win_amd64.whl",
+      "sha256": "fa06c0c184801410be1ffdcc32cf5b57d92b23a6dff9e90e5870dea8710a233c",
+      "library": "ggml-vulkan",
+      "requirements": "Windows x64；支持 Vulkan 的显卡与驱动，AMD 用户推荐。"
+    },
+    "cuda": {
+      "url": "https://github.com/abetlen/llama-cpp-python/releases/download/v0.3.35-cu124/llama_cpp_python-0.3.35-py3-none-win_amd64.whl",
+      "sha256": "84f7218c1e9cf21014b9770c65064c5a3674dd2f4fbc312c5d6bb40cec0fb269",
+      "library": "ggml-cuda",
+      "runtime_dlls": ["cudart64_12.dll", "cublas64_12.dll", "cublasLt64_12.dll"],
+      "runtime_wheels": [
+        {
+          "name": "nvidia-cuda-runtime-cu12",
+          "version": "12.4.127",
+          "url": "https://files.pythonhosted.org/packages/a8/8b/450e93fab75d85a69b50ea2d5fdd4ff44541e0138db16f9cd90123ef4de4/nvidia_cuda_runtime_cu12-12.4.127-py3-none-win_amd64.whl",
+          "sha256": "09c2e35f48359752dfa822c09918211844a3d93c100a715d79b59591130c5e1e"
+        },
+        {
+          "name": "nvidia-cublas-cu12",
+          "version": "12.4.5.8",
+          "url": "https://files.pythonhosted.org/packages/e2/2a/4f27ca96232e8b5269074a72e03b4e0d43aa68c9b965058b1684d07c6ff8/nvidia_cublas_cu12-12.4.5.8-py3-none-win_amd64.whl",
+          "sha256": "5a796786da89203a0657eda402bcdcec6180254a8ac22d72213abc42069522dc"
+        }
+      ],
+      "requirements": "Windows x64；NVIDIA 显卡和兼容 CUDA 12.4 的驱动，发布前实机验证。"
+    }
+  }
+}

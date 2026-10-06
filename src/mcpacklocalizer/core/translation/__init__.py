@@ -1,0 +1,1 @@
+"""mcpacklocalizer.core.translation module."""

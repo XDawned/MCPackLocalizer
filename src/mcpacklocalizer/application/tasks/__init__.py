@@ -1,0 +1,1 @@
+"""mcpacklocalizer.application.tasks module."""

@@ -1,14 +1,36 @@
-/shelf/
-/hook-ctypes.macholib.py
-/.idea/
-/build/
-/dist/
+# [Module: project.ignore] [Status: 已完成] [Brief: 排除运行环境、模型、用户任务和开发工具数据]
+# 本地 Python 环境与缓存
+.venv/
+venv/
+.runtime*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# 模型、个人配置与翻译产物
+/models/
+*.gguf
+.env
+.env.local
+/.tmp/
 /cache/
 /work/
-/gui/
 /save/
-/t
-/整合包本地化工具.spec
-/resource/controls
-/models/
+/shelf/
+/data/
+*.sqlite3*
 
+# 构建产物
+/build/
+/dist/
+/docs/使用说明.html
+
+# 本地开发工具与规划记录
+/.idea/
+/.specify/
+/.kilo/
+/.claude/
+/.agents/
+/.codex/

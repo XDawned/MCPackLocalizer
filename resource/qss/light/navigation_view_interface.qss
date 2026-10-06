@@ -1,5 +1,0 @@
-PivotInterface QLabel {
-    padding-left: 10px;
-    font: 14px 'Segoe UI', 'Microsoft YaHei';
-    color: black;
-}

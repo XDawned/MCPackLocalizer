@@ -1,0 +1,94 @@
+name: 构建 Windows 测试包
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'src/**'
+      - 'resources/**'
+      - 'scripts/**'
+      - 'packaging/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'main.py'
+      - 'docs/**'
+      - '.github/workflows/build-release.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  desktop:
+    name: 检查并构建公共桌面程序
+    runs-on: windows-2022
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.7.2'
+          enable-cache: true
+      - run: uv sync --frozen --python 3.12 --group release
+      - name: 全量测试（显式标记 AGENTS.md 中的三个基线失败）
+        run: uv run --no-sync python scripts/release_tests.py
+      - name: 代码检查
+        run: uv run --no-sync ruff check src tests scripts main.py
+      - name: 构建桌面 EXE 与项目 wheel
+        run: uv run --no-sync python scripts/build_release.py desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-common
+          path: |
+            build/release/desktop/
+            build/release/wheel/
+          if-no-files-found: error
+          retention-days: 14
+
+  packages:
+    name: 组装 ${{ matrix.backend }} 运行时
+    needs: desktop
+    runs-on: windows-2022
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [cpu, vulkan, cuda]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.7.2'
+          enable-cache: true
+      - run: uv sync --frozen --python 3.12 --group release
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-common
+          path: build/release
+      - name: 组装运行时并验证发布包
+        env:
+          BACKEND: ${{ matrix.backend }}
+        run: uv run --no-sync python scripts/build_release.py assemble --backend $env:BACKEND
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.backend }}
+          path: dist/release/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - name: 记录人工测试入口
+        env:
+          BACKEND: ${{ matrix.backend }}
+        run: |
+          "### $env:BACKEND 测试包" >> $env:GITHUB_STEP_SUMMARY
+          "下载本次构建的 release-$env:BACKEND artifact，解压 artifact 后再解压软件 ZIP。" >> $env:GITHUB_STEP_SUMMARY
+          "全部后端人工测试通过后，运行『发布已验证的版本』，填写本次 Run ID：$env:GITHUB_RUN_ID。" >> $env:GITHUB_STEP_SUMMARY

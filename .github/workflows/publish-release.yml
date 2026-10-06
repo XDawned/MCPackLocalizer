@@ -1,0 +1,68 @@
+name: 发布已验证的版本
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: '已完成 CPU / Vulkan / CUDA 人工测试的构建 Run ID'
+        required: true
+        type: string
+      tag:
+        description: '匹配构建版本的标签，例如 v2.0.0'
+        required: true
+        type: string
+      tested:
+        description: '确认三个后端包已人工测试通过，发布相同产物'
+        required: true
+        default: false
+        type: boolean
+      test_notes:
+        description: '记录测试设备、显卡驱动、模型和结果'
+        required: true
+        type: string
+      prerelease:
+        description: '发布为预览版本'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      TESTED: ${{ inputs.tested }}
+      TEST_NOTES: ${{ inputs.test_notes }}
+      PRERELEASE: ${{ inputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 校验人工确认、构建来源与三个后端产物
+        run: python scripts/publish_release.py check
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+          pattern: release-*
+          merge-multiple: true
+          path: artifacts
+      - name: 校验提交与 SHA256，上传原始产物并发布
+        run: python scripts/publish_release.py publish

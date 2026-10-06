@@ -1,0 +1,52 @@
+# [Module: project] [Status: 已完成] [Brief: 统一桌面项目、核心库与开发依赖]
+[project]
+name = "mcpacklocalizer"
+version = "2.0.0"
+description = "本地与 API 模型驱动的 Minecraft 整合包汉化桌面工具"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = ["pyahocorasick>=2.1", "json5>=0.12", "httpx>=0.28",
+                "tree-sitter>=0.25,<0.26", "tree-sitter-javascript>=0.25,<0.26",
+                "PyQt6>=6.10,<7", "PyQt6-Fluent-Widgets>=1.11.3,<2"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.gui-scripts]
+mcpl-desktop = "mcpacklocalizer.ui.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcpacklocalizer"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"resources/icon.ico" = "mcpacklocalizer/resources/icon.ico"
+"resources/pack.png" = "mcpacklocalizer/resources/pack.png"
+"resources/glossary/common_words_en.txt" = "mcpacklocalizer/resources/glossary/common_words_en.txt"
+"resources/glossary/glossary_en_zh.json" = "mcpacklocalizer/resources/glossary/glossary_en_zh.json"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+addopts = "--import-mode=importlib"
+
+[tool.uv]
+environments = ["sys_platform == 'win32' and platform_machine == 'AMD64'"]
+
+[dependency-groups]
+dev = [
+    "markdown-it-py==4.0.0",
+    "pytest>=8.3",
+ "pytest-mock>=3.14",
+ "ruff>=0.16",
+]
+release = [
+    "pyinstaller==6.22.3",
+ "pillow==11.3.0",
+ "markdown-it-py==4.0.0",
+]
+inference-runtime = ["numpy==2.2.6", "diskcache==5.6.3", "jinja2==3.1.6", "markupsafe==3.0.3"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
