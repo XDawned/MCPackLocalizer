@@ -1,9 +1,10 @@
 name: 构建 Windows 测试包
+run-name: 构建 ${{ github.ref_name }} Windows 测试包
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, master, 'v*-rc.*']
     paths:
       - 'src/**'
       - 'resources/**'

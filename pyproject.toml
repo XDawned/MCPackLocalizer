@@ -1,7 +1,7 @@
 # [Module: project] [Status: 已完成] [Brief: 统一桌面项目、核心库与开发依赖]
 [project]
 name = "mcpacklocalizer"
-version = "2.0.0"
+version = "2.0.0rc1"
 description = "本地与 API 模型驱动的 Minecraft 整合包汉化桌面工具"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"

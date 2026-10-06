@@ -6,6 +6,8 @@
 
 1. 把源码、`uv.lock`、`docs/`、`packaging/`、`scripts/` 和 `.github/workflows/` 推送到默认分支，并启用仓库的 Actions。本地未提交的改动不会进入云端构建。
 2. 在 Actions 页选择“构建 Windows 测试包”，点“Run workflow”，选默认分支启动，不用填参数。`main` / `master` 分支推送相关文件时也会自动构建。
+
+   候选版本可从开发分支创建 `v2.0.0-rc.1` 等 `v*-rc.*` 分支，将包版本改为 `2.0.0rc1` 后运行 `uv lock`。推送相关文件会自动构建该分支，运行标题显示分支名；从本次运行下载测试包分发给测试用户。候选分支构建不满足下方正式发布工作流的默认分支与人工验证要求。
 3. 从同一次成功运行中下载 `release-cpu`、`release-vulkan`、`release-cuda`。解压 artifact 后里面还有一层软件 ZIP，需要再解压；`desktop-common` 是中间产物，不用管。
 4. 在对应硬件上完成下方人工测试，记录 Run URL / ID、系统、硬件、驱动、模型和结果。
 5. 在默认分支运行“发布已验证的版本”，填写 `source_run_id`、与包版本匹配的 `tag`、`test_notes`，勾选 `tested`，需要预览版再勾 `prerelease`。
