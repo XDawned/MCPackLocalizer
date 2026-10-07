@@ -72,7 +72,7 @@ def encode_js(value, quote):
     return quote + body + quote
 
 
-def split_translation(source, translation):
+def split_translation(source, translation, *, manual=False):
     if not isinstance(translation, str):
         raise ValueError("脚本译文必须是文字")  # noqa: TRY004 - rejected model output is a validation error
     if MARKER.findall(source) != MARKER.findall(translation):
@@ -84,8 +84,10 @@ def split_translation(source, translation):
         if not original.strip():
             if original != translated:
                 raise ValueError("空白脚本槽位不能修改")
-        else:
+        elif not manual:
             validate(original, translated, False)
+        elif not translated.strip():
+            raise ValueError("脚本文字槽位不能为空")
     return after
 
 
@@ -456,7 +458,8 @@ def render_script(text, entries):
         unit = available.get(identity)
         if not unit or unit.script != entry.script or unit.source != entry.source:
             raise ValueError("脚本快照的位置、规则或原文与源文件不一致")
-        parts = split_translation(entry.source, entry.translation)
+        parts = split_translation(entry.source, entry.translation,
+                                  manual=entry.status == "reviewed" and entry.origin == "manual")
         for slot, translated in zip(slots, parts, strict=True):
             if text[slot["start"]:slot["end"]] != slot["raw"]:
                 raise ValueError("脚本文本槽位不匹配")

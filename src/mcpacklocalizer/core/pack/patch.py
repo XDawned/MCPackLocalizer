@@ -8,9 +8,8 @@ from pathlib import Path, PureWindowsPath
 
 from ..formats.documents import encode_text
 from ..formats.rendering import render_document
-from ..kubejs.javascript import split_translation
 from ..translation.local import quality_warnings as translation_warnings
-from ..translation.local import validate_entry, warning_text
+from ..translation.local import validate_entry, validate_manual_entry, warning_text
 from .extraction import Scan, digest, resource_exclusions
 from .snapshots import atomic_write
 
@@ -105,10 +104,11 @@ def build_patch(scan: Scan, output: Path, allow_partial=False, replace_existing_
     by_document, quality_warnings, hints_by_entry = {}, [], {}
     for entry in active:
         if entry.translation is not None:
-            validate_entry(entry, entry.translation,
-                           not entry.script and scan.metadata.get("model_config", {}).get("allow_missing_placeholders", False))
-            if entry.script:
-                split_translation(entry.source, entry.translation)
+            if entry.status == "reviewed" and entry.origin == "manual":
+                validate_manual_entry(entry, entry.translation)
+            else:
+                validate_entry(entry, entry.translation,
+                               not entry.script and scan.metadata.get("model_config", {}).get("allow_missing_placeholders", False))
             hints = translation_warnings(entry.source, entry.translation)
             hints_by_entry[entry.id] = "; ".join(warning_text(hint) for hint in hints)
             quality_warnings.extend({"entry_id": entry.id, "document": entry.document,

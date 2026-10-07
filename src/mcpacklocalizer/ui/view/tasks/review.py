@@ -20,6 +20,7 @@ from qfluentwidgets import (
 )
 
 from ....application.tasks.jobs import Job
+from ....application.tasks.polishing import validate_polish_candidate
 from ....application.tasks.requests import PatchOptions, polish_job, review_job, task_job
 from ....application.tasks.store import entry_hints, task_counts
 from ....core.translation.polishing import DEFAULT_POLISH_PROMPT
@@ -123,6 +124,7 @@ class ReviewPage(Page):
         self.hints = BodyLabel("")
         self.hints.setWordWrap(True)
         editor.addWidget(self.hints)
+        self.translation.textChanged.connect(self.update_entry_hints)
         self.save = PrimaryPushButton("保存为已审核")
         self.save.clicked.connect(self.save_entry)
         self.restore_polish = PushButton("载入修润前译文")
@@ -298,7 +300,8 @@ class ReviewPage(Page):
             for run in reversed(self.scan.metadata.get("polish_runs", [])):
                 if run.get("preview_only") and not run.get("results", {}).get(self.current_entry.id, {}).get("accepted"):
                     continue
-                if run.get("results", {}).get(self.current_entry.id, {}).get("error"):
+                proposal = run.get("results", {}).get(self.current_entry.id, {})
+                if proposal.get("error") and not proposal.get("accepted"):
                     continue
                 previous = run.get("previous", {}).get(self.current_entry.id)
                 if previous is not None:
@@ -473,6 +476,17 @@ class ReviewPage(Page):
         self.window.run_job(lambda: review_job(self.task_path, self.current_entry.id,
                                                    self.translation.toPlainText()), "保存审核", self.task_path)
 
+    def update_entry_hints(self):
+        if self.current_entry is None or self.scan is None:
+            return
+        translation = self.translation.toPlainText()
+        hints = entry_hints(replace(self.current_entry, translation=translation))
+        try:
+            validate_polish_candidate(self.scan, self.current_entry, translation, {})
+        except ValueError as exc:
+            hints = "\n".join(filter(None, [hints, "校验提醒：" + str(exc)]))
+        self.hints.setText(hints or "暂无质量提醒")
+
     def start(self, action):
         if not self.discard_changes():
             return
@@ -508,5 +522,5 @@ class ReviewPage(Page):
         action = "生成候选" if payload.get("operation") == "polish" else "翻译"
         self.counts.setText(f"本次已{action} {done} · 失败 {failed} · 剩余 {remaining}")
         if payload.get("operation") == "polish" and payload.get("error"):
-            self.polish_hint.setText("候选结果被拦截，可在预览中手动修复：" + payload["error"])
+            self.polish_hint.setText("候选结果有提醒，可在预览中自行判断或修改：" + payload["error"])
         self.compact_counts.setText(self.counts.text())

@@ -165,9 +165,9 @@ def test_accepting_manually_repaired_failure_rechecks_and_preserves_raw_response
     result = execute(polish_job(str(output), None, preferences()))
     scan = load_task(str(output))
     assert result["failed_this_run"] == 2
-    with pytest.raises(ValueError, match="保留符"):
+    with pytest.raises(ValueError, match="非空"):
         execute(Job("polish-accept", output=output, polish_run_id=result["run_id"],
-                    polish_updates={"one": "&b葡萄&r", "two": "错误"}))
+                    polish_updates={"one": "&b葡萄&r", "two": ""}))
     assert [item.translation for item in load_task(str(output)).entries] == ["&b旧葡萄&r", "保留${player}"]
     execute(Job("polish-accept", output=output, polish_run_id=result["run_id"], polish_updates={"one": "&b葡萄&r"}))
     accepted = load_task(str(output))
@@ -178,6 +178,18 @@ def test_accepting_manually_repaired_failure_rechecks_and_preserves_raw_response
     assert proposal["raw_response"] == scan.metadata["polish_runs"][-1]["results"]["one"]["raw_response"]
 
 
+def test_accepting_guard_warning_keeps_candidate_and_marks_manual_reviewed(tmp_path, mocker):
+    output = create_task(tmp_path, [entry("one", "&bGrapes&r", "&b旧葡萄&r")])
+    mock_api(mocker, lambda user: {"translation": "葡萄"})
+    result = execute(polish_job(str(output), None, preferences()))
+    execute(Job("polish-accept", output=output, polish_run_id=result["run_id"], polish_updates={"one": "葡萄"}))
+    scan = load_task(str(output))
+    saved = scan.entries[0]
+    assert (saved.translation, saved.status, saved.origin, saved.error) == ("葡萄", "reviewed", "manual", "")
+    proposal = scan.metadata["polish_runs"][-1]["results"]["one"]
+    assert proposal["accepted"] and proposal["error"] and not proposal["edited"]
+
+
 def test_accepting_stale_proposal_does_not_overwrite_new_manual_edit(tmp_path, mocker):
     output = create_task(tmp_path, [entry("one")])
     mock_api(mocker, lambda user: {"translation": "铁锭"})
@@ -186,3 +198,14 @@ def test_accepting_stale_proposal_does_not_overwrite_new_manual_edit(tmp_path, m
     with pytest.raises(ValueError, match="已被修改"):
         execute(Job("polish-accept", output=output, polish_run_id=result["run_id"], polish_updates={"one": "铁锭"}))
     assert load_task(str(output)).entries[0].translation == "人工的新译文"
+
+
+def test_accepting_bad_script_structure_is_atomic(tmp_path, mocker):
+    marker = "{{MCPL_123456abcdef_0}}"
+    output = create_task(tmp_path, [entry("one"), entry("two", "Hello " + marker, "你好 " + marker, script={"line": 1})])
+    mock_api(mocker, lambda user: {"translation": "铁锭"} if user["context"] == "one" else {"slots": ["您好 ", ""]})
+    result = execute(polish_job(str(output), None, preferences()))
+    with pytest.raises(ValueError, match="表达式占位符"):
+        execute(Job("polish-accept", output=output, polish_run_id=result["run_id"],
+                    polish_updates={"one": "铁锭", "two": "没有表达式"}))
+    assert [item.translation for item in load_task(str(output)).entries] == ["旧译文", "你好 " + marker]

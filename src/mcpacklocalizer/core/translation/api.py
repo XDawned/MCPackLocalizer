@@ -29,7 +29,7 @@ from .local import (
     validate,
 )
 from .locales import language_name, validate_pair
-from .response import extract_translation, output_instruction, strip_thinking
+from .response import extract_translation, output_instruction, preview_translation, strip_thinking
 from .rules import NoTranslate
 from .templates import config_template, prompt_record, render_template, validate_translation_config
 
@@ -325,24 +325,26 @@ class ApiClient:
             self.usage["output_tokens"] += thought_tokens if type(thought_tokens) is int and thought_tokens > 0 else 0
         if protocol == "openai":
             choice = data["choices"][0]
-            if choice.get("finish_reason") in {"length", "content_filter", "tool_calls", "function_call"}:
-                raise ValueError("模型响应不完整")
             content = choice["message"]["content"]
             text = content if isinstance(content, str) else "".join(p["text"] for p in content if p.get("type") == "text")
+            incomplete = choice.get("finish_reason") in {"length", "content_filter", "tool_calls", "function_call"}
         elif protocol == "anthropic":
-            if data.get("stop_reason") != "end_turn":
-                raise ValueError("模型响应不完整")
             text = "".join(p["text"] for p in data["content"] if p.get("type") == "text")
+            incomplete = data.get("stop_reason") != "end_turn"
         else:
             choice = data["candidates"][0]
-            if choice.get("finishReason") != "STOP":
-                raise ValueError("模型响应不完整")
             text = "".join(p.get("text", "") for p in choice["content"]["parts"] if not p.get("thought"))
+            incomplete = choice.get("finishReason") != "STOP"
+        if self.config.capture_prompts and text.strip():
+            self.last_response = text
+        if incomplete:
+            raise ValueError("模型响应不完整")
         return strip_thinking(text)
 
     def translate(self, source, context=""):
         if self.config.capture_prompts:
             self.prompt_previews = []
+            self.last_response = self.rejected_translation = ""
         body, kept = self.no_translate.mask(source)
         visible = PROTECTED.sub(" ", body)
         if not (re.search(r"[A-Za-z]", visible) if self.config.source_locale.startswith("en_") else any(c.isalpha() for c in visible)):
@@ -355,7 +357,13 @@ class ApiClient:
                 raise ValueError("原文和提示词超过上下文预算，请提高上下文长度；不会截断原文")
             if self.config.capture_prompts:
                 self.prompt_previews.append(prompt_record(user, system, terms, attempt))
-            raw = self._request(user, system)
+            try:
+                raw = self._request(user, system)
+                if self.config.capture_prompts:
+                    self.last_response = raw
+            finally:
+                if self.config.capture_prompts:
+                    self.rejected_translation = preview_translation(self.last_response, masked, mapping, kept)
             try:
                 raw = extract_translation(raw, masked)
                 relaxed = bool(attempt and self.config.allow_missing_placeholders)

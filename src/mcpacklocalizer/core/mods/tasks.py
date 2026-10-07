@@ -213,8 +213,12 @@ def validate_mod_snapshot(scan):
             raise ValueError("模组快照提供者身份已变化")
 
 
-def validate_mod_translation(scan, source, translation):
-    validate(source, translation, scan.metadata.get("model_config", {}).get("allow_missing_placeholders", False))
+def validate_mod_translation(scan, source, translation, *, manual=False):
+    if manual:
+        if not isinstance(translation, str) or not translation.strip():
+            raise ValueError("译文不能为空")
+    else:
+        validate(source, translation, scan.metadata.get("model_config", {}).get("allow_missing_placeholders", False))
     if scan.metadata["legacy_mod_language"] and ("\n" in translation or "\r" in translation):
         raise ValueError("旧版 .lang 译文不能包含字面换行符；请保留源中的 %n")
 
@@ -232,7 +236,8 @@ def prepare_mod_patch(scan, allow_partial=False):
     for entry in active:
         detail = scan.metadata["mod_entries"][entry.id]
         if entry.translation is not None:
-            validate_mod_translation(scan, entry.source, entry.translation)
+            validate_mod_translation(scan, entry.source, entry.translation,
+                                     manual=entry.status == "reviewed" and entry.origin == "manual")
             values[detail["namespace"]][detail["key"]] = entry.translation
             entry_hints = quality_warnings(entry.source, entry.translation)
             hints.extend({"entry_id": entry.id, **hint} for hint in entry_hints)

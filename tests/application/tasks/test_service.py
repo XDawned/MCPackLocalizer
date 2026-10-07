@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from mcpacklocalizer.application.tasks.jobs import Job
 from mcpacklocalizer.application.tasks.service import config_for, run_translation
 from mcpacklocalizer.application.tasks.worker import perform
@@ -44,6 +46,18 @@ def test_review_accepts_number_change_and_reports_hint(mocker, capsys):
     assert entry.status == 'reviewed' and entry.error == ''
     assert result['quality_warnings'][0]['added'] == ['32']
     store.update.assert_called_once_with(entry)
+
+
+@pytest.mark.parametrize("translation", ["&c铁&r和&b金&r", "铁和金", "&a铁和金&r"])
+def test_review_accepts_manual_color_changes_with_advisory(mocker, capsys, translation):
+    entry = Entry("one", "ftb:key", "a.snbt", ["key"], "&bGold&r and &cIron&r", 1, 12, "key")
+    scan = Scan("C:/pack", "pack", "en_us", "zh_cn", entries=[entry])
+    store = mocker.patch("mcpacklocalizer.application.tasks.service.Store").return_value.__enter__.return_value
+    store.load.return_value = scan
+    assert perform(Job("review", output="C:/output", entry_id="one", translation=translation)) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert (entry.translation, entry.status, entry.origin) == (translation, "reviewed", "manual")
+    assert result["quality_warnings"][0]["code"] == "protected_fragments_changed"
 
 def test_resume_reuses_completed_duplicate_without_second_inference(mocker):
     scan = Scan('C:/pack', 'pack', 'en_us', 'zh_cn', entries=[Entry('one', 'ftb:key', 'a.snbt', ['key'], 'Iron Ingot', 1, 12, 'key', translation='铁锭'), Entry('two', 'ftb:key', 'b.snbt', ['key'], 'Iron Ingot', 1, 12, 'key')])

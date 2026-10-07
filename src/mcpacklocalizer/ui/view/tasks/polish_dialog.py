@@ -4,6 +4,8 @@ from PyQt6.QtWidgets import QHBoxLayout, QTableWidgetItem, QTabWidget, QVBoxLayo
 from qfluentwidgets import BodyLabel, MessageBoxBase, PushButton, ScrollArea, SubtitleLabel, TableWidget, TextEdit
 
 from ....application.tasks.polishing import validate_polish_candidate
+from ....core.translation.local import validate_manual_entry
+from ....core.translation.polishing import response_candidate
 
 
 class PolishResultsDialog(MessageBoxBase):
@@ -15,12 +17,14 @@ class PolishResultsDialog(MessageBoxBase):
         self._loading = True
         self.by_id = {entry.id: entry for entry in scan.entries}
         self.keys = [key for key in run.get("previous", {}) if key in run.get("results", {}) and key in self.by_id]
-        self.edits = {key: run["results"][key].get("accepted_translation", run["results"][key].get("translation")) or ""
+        self.edits = {key: run["results"][key].get("accepted_translation", run["results"][key].get("translation"))
+                      or response_candidate(run["results"][key].get("raw_response", ""), self.by_id[key].source,
+                                            bool(self.by_id[key].script)) or ""
                       for key in self.keys}
         self.checked_repairs = set()
         self.widget.setFixedSize(min(1100, max(640, parent.width() - 80)), min(850, max(520, parent.height() - 70)))
         self.viewLayout.addWidget(SubtitleLabel("修润结果预览与接受", self.widget))
-        summary = BodyLabel("正式译文保持原样。通过项默认勾选；失败项可查看原始返回，手动修复后重新校验。只有确认接受才会保存。", self.widget)
+        summary = BodyLabel("通过项默认勾选；有提醒的结果可查看、编辑并自行勾选接受。内容守卫仅提醒，确认接受后保存为已审核。", self.widget)
         summary.setWordWrap(True)
         self.viewLayout.addWidget(summary)
         content = QWidget(self.widget)
@@ -47,7 +51,7 @@ class PolishResultsDialog(MessageBoxBase):
             if proposal.get("accepted"):
                 check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             self.table.setItem(row, 0, check)
-            state = "已接受" if proposal.get("accepted") else "守卫拦截" if proposal.get("error") else "通过，待接受"
+            state = "已接受" if proposal.get("accepted") else "有提醒，待判断" if proposal.get("error") else "通过，待接受"
             self.table.setItem(row, 1, QTableWidgetItem(state))
             item = QTableWidgetItem(self.by_id[key].source.replace("\n", " ↵ ")[:160])
             item.setToolTip(self.by_id[key].document + "\n" + self.by_id[key].source)
@@ -75,7 +79,7 @@ class PolishResultsDialog(MessageBoxBase):
         layout.addLayout(row)
         self.tabs = QTabWidget(content)
         self.candidate, self.raw = TextEdit(content), TextEdit(content)
-        self.candidate.setPlaceholderText("在这里手动修复候选译文，之后点击重新校验")
+        self.candidate.setPlaceholderText("查看或编辑返回内容，自行判断后勾选接受")
         self.raw.setReadOnly(True)
         self.tabs.addTab(self.candidate, "候选译文（可手动修复）")
         self.tabs.addTab(self.raw, "API 原始返回（包括失败内容）")
@@ -118,7 +122,7 @@ class PolishResultsDialog(MessageBoxBase):
         self.candidate.setPlainText(self.edits[key])
         self.candidate.setReadOnly(bool(proposal.get("accepted")))
         self.raw.setPlainText(proposal.get("raw_response") or "没有获得可展示的 API 返回内容。")
-        self.original_reason.setText("原始拦截原因：" + (proposal.get("error") or "已通过校验"))
+        self.original_reason.setText("原始结果提醒：" + (proposal.get("error") or "已通过校验"))
         self.guard.setText("")
         self.recheck.setEnabled(not proposal.get("accepted"))
         self._loading = False
@@ -132,22 +136,29 @@ class PolishResultsDialog(MessageBoxBase):
         row = self.keys.index(key)
         self.table.item(row, 0).setCheckState(Qt.CheckState.Unchecked)
         self.table.item(row, 1).setText("已修改，待校验")
-        self.guard.setText("修改后请重新校验。")
+        self.guard.setText("修改后可重新检查提醒，或自行勾选接受。")
 
     def validate_current(self):
         if self.current_key is None:
             return
         key = self.current_key
         try:
+            validate_manual_entry(self.by_id[key], self.edits[key])
+        except ValueError as exc:
+            self.guard.setText("无法保存：" + str(exc))
+            return False
+        row = self.keys.index(key)
+        try:
             validate_polish_candidate(self.scan, self.by_id[key], self.edits[key], self.run)
         except ValueError as exc:
-            self.guard.setText("当前守卫拦截：" + str(exc))
-            return False
-        self.checked_repairs.add(key)
-        row = self.keys.index(key)
-        self.table.item(row, 1).setText("修复后通过，待接受")
+            self.checked_repairs.discard(key)
+            self.table.item(row, 1).setText("有提醒，待判断")
+            self.guard.setText("守卫提醒（可自行接受）：" + str(exc))
+        else:
+            self.checked_repairs.add(key)
+            self.table.item(row, 1).setText("修复后通过，待接受")
+            self.guard.setText("当前校验已通过，确认接受后才会保存。")
         self.table.item(row, 0).setCheckState(Qt.CheckState.Checked)
-        self.guard.setText("当前校验已通过，确认接受后才会保存。")
         return True
 
     def check_passed(self):
@@ -166,10 +177,10 @@ class PolishResultsDialog(MessageBoxBase):
             if self.table.item(row, 0).checkState() != Qt.CheckState.Checked:
                 continue
             try:
-                validate_polish_candidate(self.scan, self.by_id[key], self.edits[key], self.run)
+                validate_manual_entry(self.by_id[key], self.edits[key])
             except ValueError as exc:
                 self.table.setCurrentCell(row, 2)
-                self.error.setText("勾选条目尚未通过校验：" + str(exc))
+                self.error.setText("勾选条目无法保存：" + str(exc))
                 return False
             updates[key] = self.edits[key]
         if not updates:

@@ -11,7 +11,7 @@ from ...core.mods.combined import mod_scan
 from ...core.mods.tasks import validate_mod_translation
 from ...core.pack.extraction import resource_exclusions
 from ...core.pack.patch import validate_sources
-from ...core.translation.local import quality_warnings, validate_entry
+from ...core.translation.local import quality_warnings, validate_entry, validate_manual_entry
 from ...core.translation.polishing import PolishApiClient
 from ...core.translation.rules import NoTranslate
 
@@ -138,9 +138,11 @@ def accept_polishing(store, args):
         previous = run["previous"][key]
         if any(getattr(entry, name) != value for name, value in previous.items()):
             raise ValueError("条目在生成候选结果后已被修改，请重新修润，避免覆盖新的人工编辑")
-        validate_polish_candidate(scan, entry, translation, run, mods)
+        validate_manual_entry(entry, translation)
+        if mods is not None and entry.semantic_key.startswith("mod:"):
+            validate_mod_translation(mods, entry.source, translation, manual=True)
         changes.append((entry, proposal, translation))
-    # 先校验全部选择，再原子提交，避免一条错误造成半批被接受。
+    # 先检查全部选择的回写结构，再原子提交；内容守卫由人工决定。
     for entry, proposal, translation in changes:
         entry.translation, entry.status, entry.origin, entry.error = translation, "reviewed", "manual", ""
         proposal.update(accepted=True, accepted_translation=translation,

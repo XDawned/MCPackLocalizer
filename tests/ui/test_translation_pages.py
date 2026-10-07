@@ -139,6 +139,25 @@ def test_playground_result_identifies_the_tested_template_and_clears_failed_resu
     assert page.hints.text().count("Index-Translate 默认翻译") == 1
 
 
+def test_playground_displays_content_with_guard_warning(window):
+    page = window.playground
+    page.show_result({"translation": "&r葡萄&b", "guard_warning": "保留符顺序改变", "quality_warnings": []})
+    assert page.translation.toPlainText() == "&r葡萄&b"
+    assert "守卫提醒" in page.hints.text() and "保留符顺序改变" in page.hints.text()
+    assert "校验通过" not in page.hints.text()
+
+
+def test_review_editor_warns_about_color_reordering_without_disabling_save(window, tmp_path):
+    load_workflow_task(window, tmp_path)
+    page = window.review
+    page.scan.entries[0].source = "&bGold&r and &cIron&r"
+    page.table.setCurrentIndex(page.proxy.mapFromSource(page.model.index(0, 0)))
+    page.translation.setPlainText("&c铁&r和&b金&r")
+    assert page.save.isEnabled()
+    assert "保留符顺序改变" in page.hints.text()
+    page.translation.document().setModified(False)
+
+
 def test_playground_preview_builds_real_terms_and_context_without_credentials(window, mocker):
     from dataclasses import replace
     window.api.store_profile(ApiProfile(id="preview", model="Index-Translate-2B", prompt_mode="index",

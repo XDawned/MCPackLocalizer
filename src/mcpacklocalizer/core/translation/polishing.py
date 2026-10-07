@@ -26,14 +26,18 @@ class PolishResponseError(RuntimeError):
 
 def response_candidate(raw, source, script=False):
     """尽量提取供人工修复的内容；提取成功并不代表通过守卫。"""
+    text = raw.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*\n(.*?)\n```", text, re.DOTALL | re.IGNORECASE)
+    if fenced:
+        text = fenced[1].strip()
     try:
-        data = json.loads(raw)
+        data = json.loads(text)
     except ValueError:
-        return raw.strip() if raw.strip() and not raw.lstrip().startswith(("{", "[")) else None
+        return (text or None) if not script else None
     if not isinstance(data, dict):
-        return None
+        return (data if isinstance(data, str) else text) if not script else None
     if not script:
-        return data.get("translation") if isinstance(data.get("translation"), str) else None
+        return data.get("translation") if isinstance(data.get("translation"), str) else text or None
     slots = data.get("slots")
     if not isinstance(slots, list) or any(not isinstance(value, str) for value in slots):
         return None

@@ -29,7 +29,7 @@ from ...core.pack.patch import build_patch, validate_output, validate_sources
 from ...core.pack.scopes import recognition_scopes
 from ...core.pack.snapshots import Store, atomic_write, load_snapshot, reuse_baseline
 from ...core.translation.api import ApiClient, validate_api_config
-from ...core.translation.local import ModelConfig, WorkerClient, quality_warnings, validate_entry
+from ...core.translation.local import ModelConfig, WorkerClient, quality_warnings, validate_entry, validate_manual_entry
 from ...core.translation.rules import NoTranslate
 from ...core.translation.script import ScriptApiClient
 from ...core.translation.templates import validate_translation_config
@@ -360,6 +360,12 @@ def execute(args: Job) -> dict:
             except (ValueError, RuntimeError, OSError) as exc:
                 if not config.capture_prompts:
                     raise
+                candidate = getattr(model, "rejected_translation", "")
+                if isinstance(candidate, str) and candidate.strip():
+                    return {"source": args.text, "translation": candidate, "guard_warning": str(exc),
+                            "quality_warnings": quality_warnings(args.text, candidate),
+                            "prompt_preview": model.prompt_previews,
+                            **({"api_usage": model.usage_snapshot()} if config.engine == "api" else {})}
                 return {"error": str(exc), "prompt_preview": model.prompt_previews}
             return {"source": args.text, "translation": translation, "runtime": model.info,
                     "quality_warnings": quality_warnings(args.text, translation),
@@ -430,14 +436,10 @@ def execute(args: Job) -> dict:
         entry = next((e for e in scan.entries if e.id == args.entry_id), None)
         if entry is None:
             raise ValueError("未知条目 ID")
-        validate_entry(entry, args.translation, scan.metadata.get("model_config", {}).get("allow_missing_placeholders", False))
-        if entry.script:
-            split_translation(entry.source, args.translation)
-        model_config = scan.metadata.get("script_model_config" if entry.script else "model_config", {})
-        NoTranslate(model_config.get("non_translate", "")).validate(entry.source, args.translation)
+        validate_manual_entry(entry, args.translation)
         mods = mod_scan(scan)
         if mods is not None and entry.semantic_key.startswith("mod:"):
-            validate_mod_translation(mods, entry.source, args.translation)
+            validate_mod_translation(mods, entry.source, args.translation, manual=True)
         entry.translation, entry.status, entry.origin, entry.error = args.translation, "reviewed", "manual", ""
         store.update(entry)
         publication = None

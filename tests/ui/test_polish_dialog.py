@@ -46,6 +46,7 @@ def test_failed_response_and_guard_reason_remain_visible(dialog):
     assert "${player}" in dialog.original_reason.text()
     dialog.table.setCurrentCell(2, 2)
     assert dialog.raw.toPlainText() == '{"translation":"铁' and "截断" in dialog.original_reason.text()
+    assert dialog.candidate.toPlainText() == '{"translation":"铁'
     assert [entry.translation for entry in dialog.scan.entries] == ["&b旧葡萄&r", "保留${player}", "旧铁锭"]
 
 
@@ -61,21 +62,29 @@ def test_failed_candidate_can_be_repaired_checked_and_accepted(dialog):
     assert dialog.scan.entries[0].translation == "&b旧葡萄&r"
 
 
-def test_manually_checking_invalid_candidate_cannot_bypass_guard(dialog):
+def test_manually_checking_candidate_accepts_guard_warning(dialog):
     dialog.table.item(1, 0).setCheckState(Qt.CheckState.Checked)
-    assert not dialog.validate()
-    assert "${player}" in dialog.error.text()
-    assert dialog.updates == {}
+    assert dialog.validate()
+    assert dialog.updates["two"] == "保留玩家"
+    assert "${player}" in dialog.run["results"]["two"]["error"]
 
 
 def test_rejecting_or_editing_does_not_change_original_translations(dialog):
     dialog.table.setCurrentCell(0, 2)
     dialog.candidate.setPlainText("损坏格式")
     assert dialog.table.item(0, 0).checkState() == Qt.CheckState.Unchecked
-    assert not dialog.validate_current()
+    assert dialog.validate_current()
+    assert "守卫提醒" in dialog.guard.text()
     dialog.reject_all.click()
     assert not dialog.validate()
     dialog.reject()
     QTest.qWait(150)
     assert dialog.scan.entries[0].translation == "&b旧葡萄&r"
     assert dialog.run["results"]["one"]["translation"] == "&b葡萄&r"
+
+
+def test_empty_manual_candidate_still_cannot_be_saved(dialog):
+    dialog.table.setCurrentCell(1, 2)
+    dialog.candidate.clear()
+    dialog.table.item(1, 0).setCheckState(Qt.CheckState.Checked)
+    assert not dialog.validate() and "不能为空" in dialog.error.text()

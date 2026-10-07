@@ -19,7 +19,7 @@ from ...paths import MODEL_HOME, RESOURCES
 from ...runtime import external_dll_search, inference_python, worker_environment
 from .glossary import COLOR, Glossary
 from .locales import language_name
-from .response import extract_translation
+from .response import extract_translation, preview_translation
 from .rules import NoTranslate
 from .templates import config_template, prompt_record, render_template, validate_translation_config
 
@@ -156,7 +156,7 @@ def placeholder_warnings(source, translation):
     remaining = iter(before)
     reordered = not all(any(item == fragment for item in remaining) for fragment in after)
     return [{"code": "protected_fragments_changed", "severity": "warning",
-             "message": "宽松模式采用了保留符缺失或换序的译文，请核对颜色范围及变量内容。",
+             "message": "译文中的保留符有变化，请核对颜色范围及变量内容；人工审核后可采用。",
              "source_fragments": before, "translated_fragments": after,
              "missing": list((Counter(before) - Counter(after)).elements()),
              "reordered": reordered}]
@@ -187,6 +187,20 @@ def validate_entry(entry, translation, allow_missing_placeholders=False):
     if entry.script:
         from ..kubejs.javascript import split_translation
         split_translation(entry.source, translation)
+    if entry.patchouli:
+        from ..patchouli.text import validate_text
+        validate_text(entry.source, translation, entry.patchouli.get("macros", ()))
+        if entry.patchouli.get("role") == "tooltip" and ")" in translation:
+            raise ValueError("帕秋莉悬浮提示不能包含结束格式标记的右括号")
+
+
+def validate_manual_entry(entry, translation):
+    """人工决定内容与保留符，只阻止空译文和无法回写的脚本/书籍结构。"""
+    if not isinstance(translation, str) or not translation.strip():
+        raise ValueError("译文不能为空")
+    if entry.script:
+        from ..kubejs.javascript import split_translation
+        split_translation(entry.source, translation, manual=True)
     if entry.patchouli:
         from ..patchouli.text import validate_text
         validate_text(entry.source, translation, entry.patchouli.get("macros", ()))
@@ -337,8 +351,13 @@ class LocalEngine:
     def translate(self, source, context=""):
         if self.config.capture_prompts:
             self.prompt_previews = []
+            self.rejected_translation = ""
         body, mapping = self.no_translate.mask(source)
-        translated = self.no_translate.restore(self._translate(body, context), mapping)
+        try:
+            translated = self.no_translate.restore(self._translate(body, context), mapping)
+        finally:
+            if self.config.capture_prompts:
+                self.rejected_translation = preview_translation(self.rejected_translation, body, mapping)
         self.no_translate.validate(source, translated)
         return translated
 
@@ -362,6 +381,8 @@ class LocalEngine:
             result = self.model.create_chat_completion(messages=messages, max_tokens=self.config.max_tokens,
                                                        seed=self.config.seed, **sampling)
             choice = result["choices"][0]
+            if self.config.capture_prompts:
+                self.rejected_translation = preview_translation(choice["message"]["content"] or "", body, mapping)
             try:
                 if choice.get("finish_reason") == "length":
                     raise ValueError("译文被截断")
@@ -443,6 +464,8 @@ class WorkerClient:
             raise RuntimeError("本地模型响应超时；请为较慢的 CPU 增大超时时间") from None
         if "prompt_preview" in message:
             self.prompt_previews = message["prompt_preview"]
+        if "rejected_translation" in message:
+            self.rejected_translation = message["rejected_translation"]
         if "error" in message:
             raise RuntimeError(message["error"])
         return message
@@ -483,6 +506,7 @@ class WorkerClient:
             raise
 
     def translate(self, source, context=""):
+        self.rejected_translation = ""
         self.process.stdin.write(json.dumps({"source": source, "context": context}, ensure_ascii=False) + "\n")
         self.process.stdin.flush()
         return self._receive()["translation"]
@@ -535,6 +559,8 @@ def worker():
                 response = {"error": str(exc)}
             if engine.config.capture_prompts and isinstance(request, dict) and request.get("operation") != "preview":
                 response["prompt_preview"] = engine.prompt_previews
+                if "error" in response:
+                    response["rejected_translation"] = getattr(engine, "rejected_translation", "")
             print(json.dumps(response, ensure_ascii=False), flush=True)
     except Exception as exc:  # noqa: BLE001 -- isolated model startup reports native/Python load errors to its parent
         traceback.print_exc(file=sys.stderr)

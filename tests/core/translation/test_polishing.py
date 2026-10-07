@@ -97,6 +97,15 @@ def test_truncated_model_response_is_kept_for_manual_repair(mocker):
     with client() as model:
         proposal = model.propose("Iron Ingot", "旧译文", "", DEFAULT_POLISH_PROMPT, "correct")
     assert "截断" in proposal["error"] and proposal["raw_response"] == '{"translation":"铁'
+    assert proposal["translation"] == '{"translation":"铁'
+
+
+def test_fenced_candidate_is_visible_even_when_json_protocol_guard_fails(mocker):
+    model = client()
+    raw = '```json\n{"translation":"葡萄"}\n```'
+    mocker.patch.object(model, "_request", return_value=raw)
+    proposal = model.propose("&bGrapes&r", "旧葡萄", "", DEFAULT_POLISH_PROMPT, "correct")
+    assert proposal["translation"] == "葡萄" and proposal["raw_response"] == raw and proposal["error"]
 
 
 def test_authentication_error_does_not_expose_http_body_or_key(mocker):

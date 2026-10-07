@@ -248,7 +248,10 @@ class PlaygroundPage(Page):
             self.hints.setText("试译已暂停")
         elif "translation" in result:
             self.translation.setPlainText(result["translation"])
-            self.hints.setText("\n".join(warning_text(h) for h in result.get("quality_warnings", [])) or "格式校验通过")
+            hints = [warning_text(h) for h in result.get("quality_warnings", [])]
+            if warning := result.get("guard_warning"):
+                hints.insert(0, "守卫提醒（返回内容仅供人工判断）：" + warning)
+            self.hints.setText("\n".join(hints) or "格式校验通过")
             if usage := result.get("api_usage"):
                 self.hints.setText(self.hints.text() + f"\nAPI 请求 {usage['requests']} · 输入 {usage['input_tokens']} / 输出 {usage['output_tokens']} token")
         elif "error" in result:

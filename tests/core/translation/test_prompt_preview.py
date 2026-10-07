@@ -2,13 +2,14 @@
 import json
 from dataclasses import asdict
 
+import httpx
 import pytest
 
 from mcpacklocalizer.application.config.settings import Settings
 from mcpacklocalizer.application.tasks.jobs import Job
 from mcpacklocalizer.application.tasks.service import config_for, execute
 from mcpacklocalizer.core.translation.api import ApiProfile
-from mcpacklocalizer.core.translation.local import LocalEngine
+from mcpacklocalizer.core.translation.local import LocalEngine, WorkerClient
 from tests.core.translation.test_templates import configured_client
 from tests.core.translation.test_translation import fake_llama
 
@@ -129,3 +130,63 @@ def test_preview_reports_excessive_context_without_truncating_source(mocker):
     record = client.preview(source)["prompt_preview"][0]
     assert record["within_budget"] is False
     assert source in record["messages"][-1]["content"]
+
+
+def test_api_trial_returns_rejected_translation_and_restores_known_markers(mocker):
+    settings = api_settings()
+    client, requests = configured_client(mocker, settings, ["葡萄", "{{0}}葡萄"])
+    client.config.capture_prompts = True
+    mocker.patch("mcpacklocalizer.application.tasks.service.translation_client", return_value=client)
+    result = execute(Job("translate", text="&bGrapes&r", capture_prompts=True, **settings.model_options()))
+    assert result["translation"] == "&b葡萄" and "保留符" in result["guard_warning"]
+    assert result["quality_warnings"][0]["missing"] == ["&r"]
+    assert len(requests) == len(result["prompt_preview"]) == 2
+
+
+@pytest.mark.parametrize("protocol", ["openai", "anthropic", "gemini"])
+def test_api_trial_keeps_truncated_provider_content_with_warning(mocker, protocol):
+    settings = api_settings(protocol=protocol)
+    raw = '<translation>铁'
+    data = ({"choices": [{"message": {"content": raw}, "finish_reason": "length"}]} if protocol == "openai" else
+            {"content": [{"type": "text", "text": raw}], "stop_reason": "max_tokens"} if protocol == "anthropic" else
+            {"candidates": [{"content": {"parts": [{"text": raw}]}, "finishReason": "MAX_TOKENS"}]})
+    transport = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=data)))
+    mocker.patch("mcpacklocalizer.core.translation.api.httpx.Client", return_value=transport)
+    result = execute(Job("translate", text="Iron", capture_prompts=True, **settings.model_options()))
+    assert result["translation"] == raw and result["guard_warning"] and "error" not in result
+
+
+def test_local_trial_preserves_rejected_translation_and_strict_calls_still_fail(mocker):
+    settings = Settings(glossary_enabled=False)
+    model, _ = fake_llama(mocker)
+    model.create_chat_completion.side_effect = [
+        {"choices": [{"message": {"content": "葡萄"}, "finish_reason": "stop"}]},
+        {"choices": [{"message": {"content": "{{1}}葡萄{{0}}"}, "finish_reason": "stop"}]}]
+    args = Job("translate", text="&bGrapes&r", capture_prompts=True, **settings.model_options())
+    engine = LocalEngine(config_for(args))
+    factory = mocker.patch("mcpacklocalizer.application.tasks.service.translation_client")
+    factory.return_value.__enter__.return_value = engine
+    result = execute(args)
+    assert result["translation"] == "&r葡萄&b" and "保留符" in result["guard_warning"]
+    assert result["quality_warnings"][0]["reordered"]
+    model.create_chat_completion.side_effect = None
+    model.create_chat_completion.return_value = {"choices": [{"message": {"content": "葡萄"}, "finish_reason": "stop"}]}
+    with pytest.raises(ValueError, match="保留符"):
+        execute(Job("translate", text="&bGrapes&r", **settings.model_options()))
+
+
+def test_local_worker_keeps_diagnostic_candidate_on_error():
+    client = WorkerClient(config_for(Job("translate", text="Iron", no_glossary=True)))
+    client.messages.put({"error": "译文修改了保留符", "rejected_translation": "葡萄", "prompt_preview": []})
+    with pytest.raises(RuntimeError, match="保留符"):
+        client._receive()
+    assert client.rejected_translation == "葡萄"
+
+
+def test_api_trial_network_error_has_no_model_content_or_credentials(mocker):
+    settings = api_settings()
+    transport = httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(401, text="private-key")))
+    mocker.patch("mcpacklocalizer.core.translation.api.httpx.Client", return_value=transport)
+    result = execute(Job("translate", text="Iron", capture_prompts=True, **settings.model_options()))
+    assert "401" in result["error"] and "translation" not in result
+    assert "private-key" not in json.dumps(result)

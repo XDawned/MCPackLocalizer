@@ -78,3 +78,15 @@ def extract_translation(raw, source):
     if not candidate:
         raise ValueError("译文为空")
     return candidate
+
+
+def preview_translation(raw, source, *mappings):
+    """试译保留未通过守卫的返回；只还原已知标记，不作为自动翻译结果。"""
+    try:
+        text = extract_translation(raw, source)
+    except ValueError:
+        text = raw.strip()
+    for mapping in mappings:
+        if mapping:
+            text = re.sub("|".join(map(re.escape, mapping)), lambda match, values=mapping: values[match.group()], text)
+    return text

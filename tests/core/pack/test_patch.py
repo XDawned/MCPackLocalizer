@@ -73,6 +73,37 @@ def test_changed_source_and_incomplete_translation_refuse_export(memory_files, m
     write.assert_not_called()
 
 
+def test_manual_reviewed_color_reordering_exports_with_warning_in_strict_task(memory_files, mocker):
+    memory_files[FILE] = '{title:"&bGold&r and &cIron&r"}'
+    scan = scan_pack(Path(ROOT))
+    entry = scan.entries[0]
+    entry.translation, entry.status, entry.origin = "&c铁&r和&b金&r", "reviewed", "manual"
+    write = mocker.patch("mcpacklocalizer.core.pack.patch.atomic_write")
+    manifest = build_patch(scan, Path("C:/mcpl-tests/output"))
+    assert not manifest["partial"] and manifest["quality_warnings"][0]["reordered"]
+    assert "&c铁&r和&b金&r" in write.call_args_list[0].args[1].decode()
+
+
+def test_manual_script_color_reordering_exports_without_changing_code(tmp_path):
+    import json
+
+    root = tmp_path / "game"
+    script = root / "kubejs/server_scripts/text.js"
+    script.parent.mkdir(parents=True)
+    original = 'player.tell("§aGold§r and §bIron§r");'
+    script.write_text(original, encoding="utf-8")
+    scan = scan_pack(root, scope="kubejs")
+    entry, = scan.entries
+    entry.translation, entry.status, entry.origin = "§b铁§r和§a金§r", "reviewed", "manual"
+    output = tmp_path / "task"
+    manifest = build_patch(scan, output)
+    assert manifest["quality_warnings"][0]["reordered"]
+    rendered = (output / "patch/kubejs/server_scripts/text.js").read_text(encoding="utf-8")
+    assert rendered.startswith("player.tell(") and rendered.endswith(");")
+    assert json.loads(rendered[len("player.tell("):-2]) == "§b铁§r和§a金§r"
+    assert script.read_text(encoding="utf-8") == original
+
+
 @pytest.mark.parametrize("relative", ["../outside", "C:/outside", "..\\outside", "/outside"])
 def test_output_path_traversal_is_rejected(relative):
     with pytest.raises(ValueError):

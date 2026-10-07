@@ -80,7 +80,7 @@ def result_summary(result):
         action = "已排除" if result["action"] == "exclude" else "已恢复"
         return f"{action} {result['changed_documents']} 个资源文件；翻译与补丁导出将遵守排除设置。"
     if result.get("operation") == "polish":
-        return f"修润候选已生成 · 通过 {result['polished_this_run']} 条 · 拦截 {result['failed_this_run']} 条；请在预览弹窗中选择接受。"
+        return f"修润候选已生成 · 通过 {result['polished_this_run']} 条 · 提醒或请求失败 {result['failed_this_run']} 条；请在预览弹窗中选择接受。"
     if result.get("operation") == "polish-accept":
         return f"已接受并保存 {result['accepted']} 条修润结果，可重新导出补丁。"
     if "patch" in result:
