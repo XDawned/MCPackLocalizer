@@ -11,7 +11,7 @@ from mcpacklocalizer.application.tasks.jobs import Job
 from mcpacklocalizer.application.tasks.worker import perform
 
 
-@pytest.fixture(params=["7b", "1.8b"])
+@pytest.fixture(params=["7b", "1.8b", "index-9b", "index-2b"])
 def model_download(tmp_path, monkeypatch, request):
     variant = request.param
     content = b"GGUF" + (variant + "-model-data").encode() * 2
@@ -210,3 +210,10 @@ def test_default_download_matches_local_inference_model_path(monkeypatch):
 
     monkeypatch.delenv("MPLT_MODEL_PATH", raising=False)
     assert str(models.model_spec("7b").path) == Settings.defaults().model
+
+
+@pytest.mark.parametrize("variant,size", [("index-9b", 5780090304), ("index-2b", 1312164352)])
+def test_index_presets_use_official_repositories_and_shared_template(variant, size):
+    spec = models.model_spec(variant)
+    assert spec.urls[0] == f"https://huggingface.co/IndexTeam/{spec.repository}/resolve/main/{spec.filename}"
+    assert spec.size == size and len(spec.sha256) == 64 and spec.template_id == "index"

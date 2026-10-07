@@ -173,7 +173,7 @@ def test_japanese_source_uses_english_target_prompt_and_is_not_skipped(mocker):
 
 
 def test_api_hy_mt_rejects_other_output_languages(mocker):
-    with pytest.raises(ValueError, match="固定模板"):
+    with pytest.raises(ValueError, match="输出中文"):
         api(mocker, [], api_prompt_mode="hy_mt", target_locale="ja_jp")
 
 

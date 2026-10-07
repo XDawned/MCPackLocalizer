@@ -60,8 +60,8 @@ def test_job_roundtrip_uses_independent_api_and_validates_selection():
     for ids in ([], ["one", "one"], [1], "one"):
         with pytest.raises(ValueError):
             polish_job("D:/task", ids, prefs)
-    prefs.api_profiles[0]["prompt_mode"] = "hy_mt"
-    with pytest.raises(ValueError, match="固定模板"):
+    prefs.api_profiles[0].update(prompt_mode="hy_mt", interface_type="translation", template_id="hy_mt")
+    with pytest.raises(ValueError, match="大模型"):
         polish_job("D:/task", None, prefs)
 
 

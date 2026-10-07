@@ -156,7 +156,8 @@ class TranslationStagePage(Page):
         self.script_api.clear()
         self.script_api.addItem("未选择（识别无需模型）", userData="")
         for profile in self.window.settings.api_profiles:
-            self.script_api.addItem(f"{profile['name']} · {profile.get('model') or '未选择模型'}", userData=profile["id"])
+            if profile.get("interface_type", "llm" if profile.get("prompt_mode", "custom") == "custom" else "translation") == "llm":
+                self.script_api.addItem(f"{profile['name']} · {profile.get('model') or '未选择模型'}", userData=profile["id"])
         self.script_api.setCurrentIndex(max(0, self.script_api.findData(self.window.settings.script_api)))
         del blocker
 

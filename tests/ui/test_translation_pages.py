@@ -40,11 +40,166 @@ def window(qt_app, mocker, tmp_path):
     qt_app.processEvents()
 
 
-def test_new_pages_construct_and_hy_mt_template_is_read_only(window):
+def test_new_pages_construct_and_complete_templates_are_available(window):
     assert window.settings.engine == "local"
     assert window.api.cards[BUILTIN_LOCAL].active
     assert window.playground.engine.text().endswith("HY-MT-2 · 本地 GGUF")
     assert "按请求指定的标签返回完整译文" in window.prompts.prompt.toPlainText()
+    assert "{text}" in window.prompts.user_prompt.toPlainText()
+
+
+def test_playground_switches_to_bound_template_and_preserves_global_selection(window, mocker):
+    from copy import deepcopy
+
+    profiles = [ApiProfile(id="small", name="Index 本地 API", model="Index-Translate-2B", prompt_mode="index"),
+                ApiProfile(id="large", name="大模型", model="large", base_url="https://example.test/v1")]
+    for profile in profiles:
+        window.api.store_profile(profile)
+    saved = deepcopy(asdict(window.settings))
+    page = window.playground
+    page.interface.setCurrentIndex(page.interface.findData("small"))
+    assert page.template.currentData() == "index"
+    page.template.setCurrentIndex(page.template.findData("mc"))
+    page.source.setPlainText("Iron Ingot")
+    calls = []
+    mocker.patch.object(window, "run_job", side_effect=lambda factory, label: calls.append(factory()))
+    page.start()
+    job = calls[0]
+    assert job.engine == "api" and job.api_model == "Index-Translate-2B"
+    assert job.prompt_template_id == "mc" and job.model_family == "index"
+    assert job.prompt_user == window.settings.templates()["mc"].user
+    assert asdict(window.settings) == saved
+    page.interface.setCurrentIndex(page.interface.findData("large"))
+    assert page.template.currentData() == "mc" and not page.custom_template
+    page.interface.setCurrentIndex(page.interface.findData("small"))
+    assert page.template.currentData() == "index" and not page.custom_template
+
+
+def test_playground_free_api_can_be_tested_without_saving_or_activating_it(window, mocker):
+    from mcpacklocalizer.core.translation.api import INDEX_PROFILE_ID
+    page = window.playground
+    page.interface.setCurrentIndex(page.interface.findData(INDEX_PROFILE_ID))
+    page.source.setPlainText("Iron Ingot")
+    calls = []
+    mocker.patch.object(window, "run_job", side_effect=lambda factory, label: calls.append(factory()))
+    page.start()
+    assert calls[0].api_model == "Index-Translate-35B-A3B" and calls[0].prompt_template_id == "index"
+    assert window.settings.engine == "local" and window.settings.api_profiles == []
+
+
+def test_playground_refresh_retains_manual_template_and_updates_saved_template_content(window):
+    from dataclasses import replace
+    window.api.store_profile(ApiProfile(id="large", model="large"))
+    page = window.playground
+    page.interface.setCurrentIndex(page.interface.findData("large"))
+    page.template.setCurrentIndex(page.template.findData("index_plain"))
+    template = replace(window.settings.templates()["index_plain"], user="对比模板：{text}")
+    window.save_settings(window.settings.store_template(template))
+    assert page.interface.currentData() == "large" and page.template.currentData() == "index_plain"
+    assert page.test_options()["prompt_user"] == "对比模板：{text}"
+    window.prompts.edit_template("mc")
+    window.switchTo(page)
+    assert page.template.currentData() == "index_plain"
+
+
+def test_playground_returns_to_local_when_selected_interface_is_removed(window):
+    from dataclasses import replace
+    window.api.store_profile(ApiProfile(id="temporary", model="model"))
+    page = window.playground
+    page.interface.setCurrentIndex(page.interface.findData("temporary"))
+    window.save_settings(replace(window.settings, api_profiles=[]))
+    assert page.interface.currentData() == BUILTIN_LOCAL
+    assert page.template.currentData() == window.settings.local_template_id
+
+
+def test_playground_controls_are_locked_during_a_running_test(window):
+    page = window.playground
+    page.set_busy(True)
+    assert not page.interface.isEnabled() and not page.template.isEnabled() and not page.translate.isEnabled()
+    assert page.stop.isEnabled()
+    page.set_busy(False)
+    assert page.interface.isEnabled() and page.template.isEnabled() and page.translate.isEnabled()
+    assert not page.stop.isEnabled()
+
+
+def test_playground_result_identifies_the_tested_template_and_clears_failed_result(window, mocker):
+    page = window.playground
+    page.template.setCurrentIndex(page.template.findData("index_plain"))
+    page.source.setPlainText("Iron Ingot")
+    mocker.patch.object(window, "run_job", side_effect=lambda factory, label: factory())
+    page.start()
+    page.template.setCurrentIndex(page.template.findData("mc"))
+    page.show_result({"translation": "铁锭"})
+    assert "Index-Translate 默认翻译" in page.hints.text()
+    assert page.translation.toPlainText() == "铁锭"
+    page.show_result({"error": "连接失败"})
+    assert not page.translation.toPlainText() and "连接失败" in page.hints.text()
+    page.show_result({}, cancelled=True)
+    assert "试译已暂停" in page.hints.text()
+    assert page.hints.text().count("Index-Translate 默认翻译") == 1
+
+
+def test_playground_preview_builds_real_terms_and_context_without_credentials(window, mocker):
+    from dataclasses import replace
+    window.api.store_profile(ApiProfile(id="preview", model="Index-Translate-2B", prompt_mode="index",
+                                       api_key="private-key", key_env="UNSET_TEST_PREVIEW_KEY"))
+    window.save_settings(replace(window.settings, glossary_inline='{"Iron Ingot":"铁锭"}'))
+    page = window.playground
+    page.interface.setCurrentIndex(page.interface.findData("preview"))
+    page.source.setPlainText("Iron Ingot")
+    page.context.setText("任务章节")
+    calls = []
+    mocker.patch.object(window, "run_job", side_effect=lambda factory, label: calls.append((factory(), label)))
+    session = mocker.patch("mcpacklocalizer.core.translation.api.httpx.Client")
+    page.start_preview()
+    job, label = calls[0]
+    assert job.operation == "preview-prompt" and label == "提示词预览"
+    assert job.api_key_env == "" and "private-key" not in json.dumps(job.payload())
+    result = execute(Job.from_payload(job.payload()))
+    session.assert_not_called()
+    page.show_preview(result)
+    assert "Iron Ingot→铁锭" in page.prompt_preview.toPlainText()
+    assert "任务章节" in page.prompt_preview.toPlainText()
+    assert "{glossary}" not in page.prompt_preview.toPlainText() and "{text}" not in page.prompt_preview.toPlainText()
+    assert "预算内术语 1 项" in page.preview_hint.text()
+    page.source.setPlainText("Gold Ingot")
+    assert not page.prompt_preview.toPlainText() and not page.preview_records
+
+
+def test_playground_shows_actual_masked_attempt_and_marks_it_as_a_real_request(window):
+    page = window.playground
+    records = [
+        {"attempt": 1, "messages": [{"role": "user", "content": "将 &bIron&r 翻译成中文"}], "terms": []},
+        {"attempt": 2, "messages": [{"role": "system", "content": "保留占位符"},
+                                    {"role": "user", "content": "将 {{0}}Iron{{1}} 翻译成中文"}],
+         "terms": [{"source": "Iron", "translation": "铁"}]},
+    ]
+    page.show_result({"translation": "&b铁&r", "prompt_preview": records})
+    assert "&bIron&r" in page.prompt_preview.toPlainText()
+    page.preview_attempt.setCurrentIndex(1)
+    assert "{{0}}Iron{{1}}" in page.prompt_preview.toPlainText()
+    assert "保留占位符" in page.prompt_preview.toPlainText()
+    assert "本次实际请求" in page.preview_hint.text() and "Iron → 铁" in page.preview_hint.text()
+
+
+def test_playground_preview_errors_and_skipped_source_are_visible(window):
+    page = window.playground
+    page.show_preview({"error": "未找到 GGUF 模型"})
+    assert "未找到 GGUF" in page.preview_hint.text()
+    page.show_preview({"prompt_preview": [], "translation_skipped": True})
+    assert "无需向模型发送" in page.preview_hint.text()
+    page.show_preview({}, cancelled=True)
+    assert "预览已暂停" in page.preview_hint.text()
+
+
+def test_preview_job_result_is_routed_back_to_the_playground(window, mocker):
+    window.pending_label = "提示词预览"
+    callback = mocker.patch.object(window.playground, "show_preview")
+    workspace_result = mocker.patch.object(window.workspace, "show_result")
+    result = {"prompt_preview": [], "translation_skipped": True}
+    window.job_done(0, result, False)
+    callback.assert_called_once_with(result, False)
+    workspace_result.assert_not_called()
 
 
 def test_runtime_logs_retain_history_between_jobs_and_accept_plain_text(window, mocker):
@@ -107,6 +262,88 @@ def test_api_profile_save_updates_translation_engine_and_preserves_local_model(w
     assert window.settings_page.collect().api_profiles == window.settings.api_profiles
 
 
+def test_index_official_api_is_available_without_manual_connection_setup(window, mocker):
+    from mcpacklocalizer.core.translation.api import INDEX_PROFILE_ID
+    assert INDEX_PROFILE_ID in window.api.cards
+    start = mocker.patch.object(window.runner, "start")
+    window.api.activate(INDEX_PROFILE_ID)
+    assert window.settings.selected_profile().model == "Index-Translate-35B-A3B"
+    assert window.settings.model_options()["api_prompt_mode"] == "index"
+    assert window.settings.model_options()["concurrency"] == 3
+    start.assert_not_called()
+
+
+def test_interface_menu_opens_bound_template_and_custom_template_can_be_selected(window):
+    from dataclasses import replace
+
+    from mcpacklocalizer.core.translation.templates import BUILTIN_TEMPLATES
+    custom = replace(BUILTIN_TEMPLATES["index"], id="my-index", name="我的 Index", user="专用：{text}")
+    window.save_settings(window.settings.store_template(custom))
+    profile = ApiProfile(id="index-local", model="Index-Translate-2B", prompt_mode="index", template_id=custom.id)
+    window.api.store_profile(profile)
+    window.api.cards[profile.id].actions["prompts"][0].trigger()
+    assert window.stackedWidget.currentWidget() == window.prompts
+    assert window.prompts.templates.currentData() == custom.id
+    assert not window.prompts.user_prompt.isReadOnly()
+    window.prompts.user_prompt.setPlainText("更新：{text} → {target_language}")
+    window.prompts.save()
+    window.api.activate(profile.id)
+    assert window.settings.model_options()["prompt_user"] == "更新：{text} → {target_language}"
+    dialog = AddApiDialog(window)
+    dialog.select_platform("ollama")
+    dialog.validate()
+    dialog.details.kind.setCurrentIndex(dialog.details.kind.findData("translation"))
+    assert dialog.details.template.findData(custom.id) >= 0
+    assert dialog.details.template.findData("mc") == -1
+    dialog.details.template.setCurrentIndex(dialog.details.template.findData(custom.id))
+    dialog.details.model.setText("Index-Translate-2B")
+    assert dialog.validate() and dialog.profile.template_id == custom.id
+    assert dialog.profile.concurrency == 1
+    dialog.deleteLater()
+
+
+def test_prompt_template_copy_reset_and_bound_delete_guard(window):
+    from mcpacklocalizer.ui.view.api.local import LocalEditDialog
+    window.prompts.edit_template("hy_mt")
+    window.prompts.duplicate()
+    custom_id = window.prompts.templates.currentData()
+    assert custom_id != "hy_mt"
+    window.prompts.user_prompt.setPlainText("我的 HY：{text}")
+    window.prompts.save()
+    dialog = LocalEditDialog(window.settings.current_local_profile(), window)
+    dialog.details.template.setCurrentIndex(dialog.details.template.findData(custom_id))
+    assert dialog.validate()
+    window.api.store_profile(dialog.profile)
+    dialog.deleteLater()
+    assert window.settings.model_options()["prompt_user"] == "我的 HY：{text}"
+    window.prompts.remove()
+    assert custom_id in window.settings.templates()
+    window.save_settings(window.settings.bind_local_template("hy_mt"))
+    window.prompts.remove()
+    assert custom_id not in window.settings.templates()
+    window.prompts.edit_template("hy_mt")
+    window.prompts.user_prompt.setPlainText("修改预设：{text}")
+    window.prompts.save()
+    assert window.settings.templates()["hy_mt"].user == "修改预设：{text}"
+    window.prompts.reset()
+    assert "将以下文本翻译为{target_language}" in window.settings.templates()["hy_mt"].user
+
+
+@pytest.mark.parametrize("platform,concurrency", [("ollama", 1), ("openai", 3), ("index", 3)])
+def test_add_dialog_uses_deployment_concurrency_and_index_defaults(window, platform, concurrency):
+    dialog = AddApiDialog(window)
+    dialog.select_platform(platform)
+    dialog.validate()
+    if platform != "index":
+        dialog.details.model.setText("model")
+    assert dialog.validate()
+    assert dialog.profile.concurrency == concurrency
+    if platform == "index":
+        assert dialog.profile.interface_type == "translation" and dialog.profile.template_id == "index"
+        assert dialog.profile.model == "Index-Translate-35B-A3B" and not dialog.profile.api_key
+    dialog.deleteLater()
+
+
 def test_settings_save_preserves_api_prompt_and_rules(window):
     window.settings.system_prompt = "custom MC prompt"
     window.settings.non_translate = "Create"
@@ -114,6 +351,20 @@ def test_settings_save_preserves_api_prompt_and_rules(window):
     assert window.settings_page.collect().system_prompt == "custom MC prompt"
     assert window.settings_page.collect().non_translate == "Create"
     assert window.settings_page.collect().glossary_inline == '{"Iron Ingot":"铁锭"}'
+
+
+def test_settings_model_picker_uses_index_template_and_restores_previous_binding(window, tmp_path):
+    previous = window.settings.model
+    index_model = str(tmp_path / "Index-Translate-2B.Q4_K_M.gguf")
+    window.settings_page.model.setPath(index_model)
+    window.settings_page.save_timer.stop()
+    window.settings_page.save()
+    assert window.settings.local_template_id == "index"
+    assert window.settings.download_variant == "index-2b"
+    window.settings_page.model.setPath(previous)
+    window.settings_page.save_timer.stop()
+    window.settings_page.save()
+    assert window.settings.local_template_id == "hy_mt"
 
 
 def test_catalog_page_has_bounded_rows_and_keeps_edits_across_pages(window, qt_app, mocker):

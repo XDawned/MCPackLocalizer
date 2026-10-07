@@ -1,4 +1,4 @@
-# [Module: application.models] [Status: 已完成] [Brief: HY-MT-2 模型流式下载、断点续传与完整性校验]
+# [Module: application.models] [Status: 已完成] [Brief: 专用翻译模型流式下载、断点续传与完整性校验]
 from __future__ import annotations
 
 import hashlib
@@ -23,6 +23,12 @@ class ModelDownload:
     filename: str
     size: int
     sha256: str
+    owner: str = "tencent"
+    template_id: str = "hy_mt"
+
+    @property
+    def name(self) -> str:
+        return ("Index-Translate " if self.template_id == "index" else "HY-MT-2 ") + self.label
 
     @property
     def path(self) -> Path:
@@ -30,7 +36,7 @@ class ModelDownload:
 
     @property
     def urls(self) -> tuple[str, ...]:
-        return tuple(f"https://{host}/tencent/{self.repository}/resolve/main/{self.filename}"
+        return tuple(f"https://{host}/{self.owner}/{self.repository}/resolve/main/{self.filename}"
                      for host in ("huggingface.co", "hf-mirror.com"))
 
 
@@ -39,19 +45,23 @@ MODEL_VARIANTS = {
                         "9f96256500f3fc1ab4d64336b58f52a949a95ad7516b0c229476eef782f9f77b"),
     "1.8b": ModelDownload("1.8B", "Hy-MT2-1.8B-GGUF", "Hy-MT2-1.8B-Q4_K_M.gguf", 1133080448,
                           "dc5f44fcf1fa496ee7ad725982c0c8c553a4de00259b53af84c4b89fb0c06699"),
+    "index-9b": ModelDownload("9B", "Index-Translate-9B-GGUF", "Index-Translate-9B.Q4_K_M.gguf", 5780090304,
+                              "9cc6758b0007f4cbf42ea3400768cbff91ae74ef8d640e467158348426d33713", "IndexTeam", "index"),
+    "index-2b": ModelDownload("2B", "Index-Translate-2B-GGUF", "Index-Translate-2B.Q4_K_M.gguf", 1312164352,
+                              "044b313d29342bd3b2c77cbb64023ca0d209bd9b3247763f9d162767ef2d746a", "IndexTeam", "index"),
 }
 
 
 def model_spec(variant: str) -> ModelDownload:
     if variant not in MODEL_VARIANTS:
-        raise ValueError("请选择 7B 或 1.8B 模型")
+        raise ValueError("请选择 HY-MT-2 7B 或 1.8B，或 Index-Translate 9B / 2B 模型")
     return MODEL_VARIANTS[variant]
 
 
 def model_progress(completed: int, phase: str, variant: str, spec: ModelDownload):
     print(json.dumps({"operation": "download-model", "completed": completed, "failed": 0,
                       "remaining": max(0, spec.size - completed), "total": spec.size,
-                      "download_variant": variant, "phase": f"HY-MT-2 {spec.label} · {phase}"},
+                      "download_variant": variant, "phase": f"{spec.name} · {phase}"},
                      ensure_ascii=False), file=sys.stderr, flush=True)
 
 

@@ -21,8 +21,9 @@ from .glossary import COLOR, Glossary
 from .locales import language_name
 from .response import extract_translation
 from .rules import NoTranslate
+from .templates import config_template, prompt_record, render_template, validate_translation_config
 
-# API custom mode only; LocalEngine always uses the fixed HY-MT2 render_prompt() template.
+# 保留旧任务的系统提示词默认值；新任务通过接口绑定完整模板。
 DEFAULT_SYSTEM_PROMPT = (
     "你是 Minecraft 整合包翻译者。将{source_language}的任务、物品、方块、界面和模组说明翻译成{target_language}。\n"
     "使用自然准确的游戏用语。保留资源 ID、变量、URL、颜色和格式代码、\n"
@@ -261,6 +262,11 @@ class ModelConfig:
     api_token_parameter: str = "max_tokens"
     api_extra_body: str = "{}"
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
+    prompt_template_id: str = ""
+    prompt_family: str = "hy_mt"
+    model_family: str = ""
+    capture_prompts: bool = False
+    prompt_user: str = ""
     glossary_inline: str = "{}"
     non_translate: str = ""
     concurrency: int = 1
@@ -273,10 +279,10 @@ class ModelConfig:
 
 class LocalEngine:
     def __init__(self, config: ModelConfig):
-        if config.target_locale != "zh_cn":
-            raise ValueError("HY-MT-2 固定模板输出中文；其它译文语言请使用 API 的 MC 提示词模式")
+        validate_translation_config(config)
         from llama_cpp import Llama, llama_cpp
         self.config = config
+        self.prompt_previews = []
         if not Path(config.model).is_file():
             raise ValueError(f"未找到 GGUF 模型：{config.model}")
         # Backend initialization enumerates actual devices. Recent Vulkan builds
@@ -308,6 +314,15 @@ class LocalEngine:
         if not self.model.metadata.get("tokenizer.chat_template"):
             self.model.close()
             raise ValueError("GGUF 缺少对话模板；不能静默改用通用模板")
+        if (config.model_family or config.prompt_family) == "index":
+            from llama_cpp.llama_chat_format import Jinja2ChatFormatter
+            # 使用模型内嵌对话格式，仅绑定官方关闭思考的变量，不改动模型提示词。
+            formatter = Jinja2ChatFormatter(
+                template="{% set enable_thinking = false %}" + self.model.metadata["tokenizer.chat_template"],
+                eos_token=self.model.detokenize([self.model.token_eos()], special=True).decode("utf-8"),
+                bos_token=self.model.detokenize([self.model.token_bos()], special=True).decode("utf-8"),
+                stop_token_ids=[self.model.token_eos()])
+            self.model.chat_handler = formatter.to_chat_handler()
         self.glossary = Glossary(Path(config.glossary) if config.glossary else None,
                                  Path(config.overrides) if config.overrides else None, inline=config.glossary_inline)
         self.no_translate = NoTranslate(config.non_translate)
@@ -320,6 +335,8 @@ class LocalEngine:
         return len(self.model.tokenize(text.encode("utf-8"), add_bos=False, special=True))
 
     def translate(self, source, context=""):
+        if self.config.capture_prompts:
+            self.prompt_previews = []
         body, mapping = self.no_translate.mask(source)
         translated = self.no_translate.restore(self._translate(body, context), mapping)
         self.no_translate.validate(source, translated)
@@ -329,25 +346,21 @@ class LocalEngine:
         visible = PROTECTED.sub(" ", source)
         if not (re.search(r"[a-zA-Z]", visible) if self.config.source_locale.startswith("en_") else any(c.isalpha() for c in visible)):
             return source
-        terms, budget = [], 0
-        if self.config.glossary or self.config.overrides or self.config.glossary_inline != "{}":
-            for term in self.glossary.find(visible):
-                size = self.tokens(f"{term[0]} 翻译成 {term[1]}\n")
-                if budget + size <= self.config.term_tokens:
-                    terms.append(term)
-                    budget += size
+        terms = self._terms(visible)
         last_error = None
         for attempt in range(2):
-            body, mapping = protect_braces(source) if attempt else (source, {})
-            prompt = render_prompt(body, terms, context, markers=list(mapping))
-            # Check each path independently; a short successful direct prompt
-            # need not fit an unused masked fallback. Never truncate the source.
-            if self.tokens(prompt) + self.config.max_tokens + 128 > self.model.n_ctx():
+            body, mapping, prompt, system = self._prompt(source, terms, context, attempt)
+            # 首轮与掩码路径分别检查预算，原文不会被截断。
+            if self.tokens(prompt + system) + self.config.max_tokens + 128 > self.model.n_ctx():
                 raise ValueError("文本超过上下文预算；请增大 --context-size 或在校对时拆分该条目")
+            if self.config.capture_prompts:
+                self.prompt_previews.append(prompt_record(prompt, system, terms, attempt))
             self.model.reset()
-            result = self.model.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}], max_tokens=self.config.max_tokens,
-                seed=self.config.seed, temperature=0.7, top_p=0.6, top_k=20, repeat_penalty=1.05)
+            messages = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": prompt}]
+            sampling = ({"temperature": 0.0} if (self.config.model_family or self.config.prompt_family) == "index" else
+                        {"temperature": 0.7, "top_p": 0.6, "top_k": 20, "repeat_penalty": 1.05})
+            result = self.model.create_chat_completion(messages=messages, max_tokens=self.config.max_tokens,
+                                                       seed=self.config.seed, **sampling)
             choice = result["choices"][0]
             try:
                 if choice.get("finish_reason") == "length":
@@ -361,6 +374,45 @@ class LocalEngine:
                 last_error = exc
         raise last_error
 
+    def _terms(self, visible):
+        terms, budget = [], 0
+        if self.config.glossary or self.config.overrides or self.config.glossary_inline != "{}":
+            for term in self.glossary.find(visible):
+                size = self.tokens(f"{term[0]} 翻译成 {term[1]}\n")
+                if budget + size <= self.config.term_tokens:
+                    terms.append(term)
+                    budget += size
+        return terms
+
+    def _prompt(self, source, terms, context, attempt):
+        body, mapping = protect_braces(source) if attempt else (source, {})
+        if self.config.prompt_user:
+            prompt, system = render_template(config_template(self.config), body,
+                                            self.config.source_locale, self.config.target_locale, terms, context,
+                                            preservation_rules(body, list(mapping)) if mapping else "")
+        elif self.config.prompt_family == "index":
+            from .templates import BUILTIN_TEMPLATES
+            prompt, system = render_template(BUILTIN_TEMPLATES["index"], body,
+                                            self.config.source_locale, self.config.target_locale, terms, context,
+                                            preservation_rules(body, list(mapping)) if mapping else "")
+        else:
+            prompt, system = render_prompt(body, terms, context, markers=list(mapping)), ""
+        return body, mapping, prompt, system
+
+    def preview(self, source, context=""):
+        body, _ = self.no_translate.mask(source)
+        visible = PROTECTED.sub(" ", body)
+        if not (re.search(r"[a-zA-Z]", visible) if self.config.source_locale.startswith("en_") else any(c.isalpha() for c in visible)):
+            return {"prompt_preview": [], "translation_skipped": True}
+        terms = self._terms(visible)
+        records = []
+        for attempt in range(2):
+            _, _, prompt, system = self._prompt(body, terms, context, attempt)
+            record = prompt_record(prompt, system, terms, attempt)
+            record["within_budget"] = self.tokens(prompt + system) + self.config.max_tokens + 128 <= self.model.n_ctx()
+            records.append(record)
+        return {"prompt_preview": records, "translation_skipped": False}
+
     def close(self):
         self.model.close()
 
@@ -371,6 +423,7 @@ class WorkerClient:
         self.timeout, self.process, self.log = timeout, None, None
         self.config, self.python, self.log_path = config, inference_python(python), log_path
         self.messages = queue.Queue()
+        self.prompt_previews = []
 
     def _read(self):
         try:
@@ -388,6 +441,8 @@ class WorkerClient:
         except queue.Empty:
             self.close()
             raise RuntimeError("本地模型响应超时；请为较慢的 CPU 增大超时时间") from None
+        if "prompt_preview" in message:
+            self.prompt_previews = message["prompt_preview"]
         if "error" in message:
             raise RuntimeError(message["error"])
         return message
@@ -432,6 +487,11 @@ class WorkerClient:
         self.process.stdin.flush()
         return self._receive()["translation"]
 
+    def preview(self, source, context=""):
+        self.process.stdin.write(json.dumps({"operation": "preview", "source": source, "context": context}, ensure_ascii=False) + "\n")
+        self.process.stdin.flush()
+        return self._receive()["preview"]
+
     def close(self):
         if self.process:
             if self.process.poll() is None:
@@ -461,12 +521,20 @@ def worker():
         engine = LocalEngine(ModelConfig(**json.loads(sys.stdin.readline())))
         print(json.dumps({"ready": engine.info}), flush=True)
         for line in sys.stdin:
+            request = {}
             try:
                 request = json.loads(line)
-                response = {"translation": engine.translate(request["source"], request.get("context", ""))}
+                if not isinstance(request, dict):
+                    raise TypeError("模型请求必须是 JSON 对象")
+                if request.get("operation") == "preview":
+                    response = {"preview": engine.preview(request["source"], request.get("context", ""))}
+                else:
+                    response = {"translation": engine.translate(request["source"], request.get("context", ""))}
             except Exception as exc:  # noqa: BLE001 -- worker protocol must serialize errors, not terminate on one entry
                 traceback.print_exc(file=sys.stderr)
                 response = {"error": str(exc)}
+            if engine.config.capture_prompts and isinstance(request, dict) and request.get("operation") != "preview":
+                response["prompt_preview"] = engine.prompt_previews
             print(json.dumps(response, ensure_ascii=False), flush=True)
     except Exception as exc:  # noqa: BLE001 -- isolated model startup reports native/Python load errors to its parent
         traceback.print_exc(file=sys.stderr)

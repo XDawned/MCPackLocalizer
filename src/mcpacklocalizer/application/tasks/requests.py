@@ -149,7 +149,7 @@ def polish_job(output, entry_ids, settings, mode="correct"):
     selected = replace(settings, engine="api", active_api=settings.polish_api)
     options = selected.model_options()
     if options["api_prompt_mode"] != "custom":
-        raise ValueError("修润 API 请选择 MC 提示词模式；HY-MT-2 固定模板用于翻译")
+        raise ValueError("修润 API 请选择大模型接口；专用翻译模型用于普通翻译")
     return Job("polish", output=migrated_path(required(output, "任务目录")), entry_ids=entry_ids,
                polish_prompt=settings.polish_prompt, polish_mode=mode, **options)
 

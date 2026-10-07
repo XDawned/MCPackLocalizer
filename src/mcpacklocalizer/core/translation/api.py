@@ -8,6 +8,7 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field
+from ipaddress import ip_address
 from pathlib import Path
 from urllib.parse import quote, urlsplit, urlunsplit
 from uuid import uuid4
@@ -30,8 +31,24 @@ from .local import (
 from .locales import language_name, validate_pair
 from .response import extract_translation, output_instruction, strip_thinking
 from .rules import NoTranslate
+from .templates import config_template, prompt_record, render_template, validate_translation_config
 
 PROTOCOLS = ("openai", "anthropic", "gemini")
+
+
+def local_api(base_url, group="auto"):
+    if group == "local":
+        return True
+    if group == "online":
+        return False
+    hostname = (urlsplit(base_url).hostname or "").lower()
+    if hostname == "localhost" or hostname.endswith((".localhost", ".local")):
+        return True
+    try:
+        address = ip_address(hostname)
+        return address.is_private or address.is_loopback
+    except ValueError:
+        return False
 
 
 def endpoint(base_url, protocol, model=""):
@@ -68,6 +85,8 @@ def extra_parameters(text):
                 "system_instruction", "generation_config", "candidateCount"}
     if reserved.intersection(data):
         raise ValueError("扩展参数不能覆盖模型、提示词、流式开关、输出上限、温度或密钥")
+    if "chat_template_kwargs" in data and not isinstance(data["chat_template_kwargs"], dict):
+        raise ValueError("chat_template_kwargs 必须是 JSON 对象")
     return data
 
 
@@ -81,6 +100,8 @@ class ApiProfile:
     api_key: str = field(default="", repr=False)
     key_env: str = ""
     prompt_mode: str = "custom"
+    interface_type: str = ""
+    template_id: str = ""
     temperature: float = 0.3
     send_temperature: bool = True
     token_parameter: str = "max_tokens"
@@ -90,23 +111,33 @@ class ApiProfile:
     max_tokens: int = 2048
     term_tokens: int = 1024
     timeout: int = 300
-    concurrency: int = 3
+    concurrency: int | None = None
     retries: int = 2
     request_interval: float = 1.0
 
+    def __post_init__(self):
+        if not self.interface_type:
+            self.interface_type = "translation" if self.prompt_mode in {"hy_mt", "index", "translation"} else "llm"
+        if not self.template_id:
+            self.template_id = {"hy_mt": "hy_mt", "index": "index", "translation": "translation"}.get(self.prompt_mode, "mc")
+        if self.concurrency is None:
+            self.concurrency = 1 if local_api(self.base_url, self.group) else 3
+
     def validate(self, *, require_model=True):
         for name in ("id", "name", "protocol", "base_url", "model", "api_key", "key_env", "prompt_mode",
-                     "token_parameter", "extra_body", "group"):
+                     "token_parameter", "extra_body", "group", "interface_type", "template_id"):
             if not isinstance(getattr(self, name), str):
                 raise ValueError(f"接口 {name} 必须是文本")  # noqa: TRY004 -- configuration errors share a UI path
         if not self.id or not self.name.strip():
             raise ValueError("接口标识和名称不能为空")
-        if self.protocol not in PROTOCOLS or self.prompt_mode not in {"custom", "hy_mt"}:
+        if self.protocol not in PROTOCOLS or self.prompt_mode not in {"custom", "hy_mt", "index", "translation"}:
             raise ValueError("请选择有效的接口协议和提示词模式")
+        if self.interface_type not in {"translation", "llm"} or not self.template_id:
+            raise ValueError("请选择接口类型和翻译模板")
         if self.group not in {"auto", "local", "online", "custom"}:
             raise ValueError("请选择有效的接口分组")
-        if self.protocol != "openai" and self.prompt_mode == "hy_mt":
-            raise ValueError("HY-MT-2 的 API 模式使用 OpenAI 兼容协议")
+        if self.protocol != "openai" and self.prompt_mode in {"hy_mt", "index"}:
+            raise ValueError("HY-MT-2 和 Index-Translate 使用 OpenAI 兼容协议")
         if require_model and not self.model.strip():
             raise ValueError("请填写 API 模型名称")
         if self.key_env and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", self.key_env):
@@ -142,10 +173,20 @@ class ApiProfile:
         return self.api_key.strip()
 
 
+INDEX_PROFILE_ID = "__index_translate_official__"
+
+
+def index_profile():
+    return ApiProfile(id=INDEX_PROFILE_ID, name="Index-Translate · 官方免费 API", group="online",
+                      base_url="https://index-translate.bilibili.com/v1", model="Index-Translate-35B-A3B",
+                      prompt_mode="index", interface_type="translation", template_id="index",
+                      temperature=0.0, concurrency=3, request_interval=0.0,
+                      extra_body='{"chat_template_kwargs":{"enable_thinking":false}}')
+
+
 def validate_api_config(config):
     validate_pair(config.source_locale, config.target_locale)
-    if config.api_prompt_mode == "hy_mt" and config.target_locale != "zh_cn":
-        raise ValueError("HY-MT-2 固定模板输出中文；其它译文语言请选择 MC 提示词模式")
+    validate_translation_config(config)
     ApiProfile(id=config.api_profile_id or "api", protocol=config.api_protocol, base_url=config.api_base_url,
                model=config.api_model, key_env=config.api_key_env, prompt_mode=config.api_prompt_mode,
                temperature=config.api_temperature, send_temperature=config.api_send_temperature,
@@ -156,6 +197,7 @@ class ApiClient:
     def __init__(self, config: ModelConfig, credentials=None, timeout=300):
         validate_api_config(config)
         self.config = config
+        self.prompt_previews = []
         self.key = (credentials or {}).get(config.api_profile_id, "")
         if config.api_key_env:
             self.key = os.getenv(config.api_key_env, "")
@@ -194,6 +236,9 @@ class ApiClient:
     def _payload(self, user, system):
         cfg = self.config
         headers = {"Content-Type": "application/json", "User-Agent": f"MCPackLocalizer/{__version__} (localization tool)"}
+        if urlsplit(self.url).hostname == "index-translate.bilibili.com":
+            # 官方免费服务要求示例客户端的请求头，通用客户端标识可能触发 HTTP 412。
+            headers["User-Agent"] = "Index-Translate-Client/1.0"
         if urlsplit(self.url).hostname == "opencode.ai":
             headers["x-opencode-session"] = self.session_id
         if cfg.api_protocol == "openai":
@@ -222,6 +267,9 @@ class ApiClient:
             if system:
                 body["systemInstruction"] = {"parts": [{"text": system}]}
         extras = extra_parameters(cfg.api_extra_body)
+        if cfg.api_protocol == "openai" and (cfg.model_family == "index" or cfg.api_prompt_mode == "index" or
+                                               cfg.prompt_family == "index" and cfg.prompt_user):
+            extras["chat_template_kwargs"] = {**extras.get("chat_template_kwargs", {}), "enable_thinking": False}
         if cfg.api_protocol == "gemini":
             # Gemini's generation options live inside generationConfig.
             for key in ("topP", "topK", "thinkingConfig", "stopSequences"):
@@ -293,41 +341,20 @@ class ApiClient:
         return strip_thinking(text)
 
     def translate(self, source, context=""):
+        if self.config.capture_prompts:
+            self.prompt_previews = []
         body, kept = self.no_translate.mask(source)
         visible = PROTECTED.sub(" ", body)
         if not (re.search(r"[A-Za-z]", visible) if self.config.source_locale.startswith("en_") else any(c.isalpha() for c in visible)):
             return source
-        terms, budget = [], 0
-        matches = self.glossary.find(visible) if self.config.term_tokens else []
-        for term in matches:
-            # A conservative UTF-8 byte estimate avoids adding a tokenizer dependency.
-            size = len(f"{term[0]} = {term[1]}\n".encode())
-            if budget + size <= self.config.term_tokens:
-                terms.append(term)
-                budget += size
+        terms = self._terms(visible)
         last_error = None
         for attempt in range(2):
-            masked, mapping = protect_braces(body) if attempt else (body, {})
-            cfg = self.config
-            template = "" if cfg.api_prompt_mode == "hy_mt" else cfg.system_prompt
-            # Templates can place reference data in the system message; otherwise retain user-message injection.
-            user_terms = () if "{glossary}" in template else terms
-            user_context = "" if "{context}" in template else context
-            if cfg.api_prompt_mode == "hy_mt":
-                user = render_prompt(masked, user_terms, user_context, markers=list(mapping))
-            else:
-                source_label = language_name(cfg.source_locale, english=True) + f" ({cfg.source_locale})"
-                target_label = language_name(cfg.target_locale, english=True) + f" ({cfg.target_locale})"
-                reference = "参考术语：\n" + "\n".join(f"{key} 翻译成 {value}" for key, value in user_terms) + "\n\n" if user_terms else ""
-                background = f"【背景信息】\n{user_context}\n\n" if user_context else ""
-                rules = preservation_rules(masked, list(mapping)) if mapping else ""
-                user = (reference + background + rules + output_instruction(masked)
-                        + f"将以下 {source_label} 文本翻译为 {target_label}：\n\n" + masked)
-                if attempt:
-                    user = "上次响应未通过译文边界或保留符校验，请返回一个完整译文结果。\n" + user
-            system = render_system_prompt(template, cfg.source_locale, cfg.target_locale, terms, context)
+            masked, mapping, user, system = self._prompt(body, terms, context, attempt)
             if len((user + system).encode()) + self.config.max_tokens > self.config.context_size:
                 raise ValueError("原文和提示词超过上下文预算，请提高上下文长度；不会截断原文")
+            if self.config.capture_prompts:
+                self.prompt_previews.append(prompt_record(user, system, terms, attempt))
             raw = self._request(user, system)
             try:
                 raw = extract_translation(raw, masked)
@@ -340,3 +367,57 @@ class ApiClient:
             except ValueError as exc:
                 last_error = exc
         raise last_error
+
+    def _terms(self, visible):
+        terms, budget = [], 0
+        matches = self.glossary.find(visible) if self.config.term_tokens else []
+        for term in matches:
+            # A conservative UTF-8 byte estimate avoids adding a tokenizer dependency.
+            size = len(f"{term[0]} = {term[1]}\n".encode())
+            if budget + size <= self.config.term_tokens:
+                terms.append(term)
+                budget += size
+        return terms
+
+    def _prompt(self, body, terms, context, attempt):
+        masked, mapping = protect_braces(body) if attempt else (body, {})
+        cfg = self.config
+        template = "" if cfg.api_prompt_mode == "hy_mt" else cfg.system_prompt
+        user_terms = () if "{glossary}" in template else terms
+        user_context = "" if "{context}" in template else context
+        if cfg.prompt_user:
+            user, system = render_template(config_template(cfg), masked, cfg.source_locale, cfg.target_locale,
+                                           terms, context, preservation_rules(masked, list(mapping)) if mapping else "")
+        elif cfg.api_prompt_mode == "index":
+            from .templates import BUILTIN_TEMPLATES
+            user, system = render_template(BUILTIN_TEMPLATES["index"], masked, cfg.source_locale, cfg.target_locale,
+                                           terms, context, preservation_rules(masked, list(mapping)) if mapping else "")
+        elif cfg.api_prompt_mode == "hy_mt":
+            user = render_prompt(masked, user_terms, user_context, markers=list(mapping))
+        else:
+            source_label = language_name(cfg.source_locale, english=True) + f" ({cfg.source_locale})"
+            target_label = language_name(cfg.target_locale, english=True) + f" ({cfg.target_locale})"
+            reference = "参考术语：\n" + "\n".join(f"{key} 翻译成 {value}" for key, value in user_terms) + "\n\n" if user_terms else ""
+            background = f"【背景信息】\n{user_context}\n\n" if user_context else ""
+            rules = preservation_rules(masked, list(mapping)) if mapping else ""
+            user = (reference + background + rules + output_instruction(masked)
+                    + f"将以下 {source_label} 文本翻译为 {target_label}：\n\n" + masked)
+            if attempt:
+                user = "上次响应未通过译文边界或保留符校验，请返回一个完整译文结果。\n" + user
+        if not cfg.prompt_user and cfg.api_prompt_mode != "index":
+            system = render_system_prompt(template, cfg.source_locale, cfg.target_locale, terms, context)
+        return masked, mapping, user, system
+
+    def preview(self, source, context=""):
+        body, _ = self.no_translate.mask(source)
+        visible = PROTECTED.sub(" ", body)
+        if not (re.search(r"[A-Za-z]", visible) if self.config.source_locale.startswith("en_") else any(c.isalpha() for c in visible)):
+            return {"prompt_preview": [], "translation_skipped": True}
+        terms = self._terms(visible)
+        records = []
+        for attempt in range(2):
+            _, _, user, system = self._prompt(body, terms, context, attempt)
+            record = prompt_record(user, system, terms, attempt)
+            record["within_budget"] = len((user + system).encode()) + self.config.max_tokens <= self.config.context_size
+            records.append(record)
+        return {"prompt_preview": records, "translation_skipped": False}

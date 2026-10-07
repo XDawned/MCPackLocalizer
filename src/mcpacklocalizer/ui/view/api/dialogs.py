@@ -1,5 +1,6 @@
-"""Two-step creation, connection editing and separate model parameter dialogs."""
+# [Module: ui.api.dialogs] [Status: 已完成] [Brief: 接口类型、模板绑定与连接参数编辑]
 from dataclasses import replace
+from pathlib import Path
 from uuid import uuid4
 
 from PyQt6.QtWidgets import QHBoxLayout, QLineEdit, QStackedWidget, QVBoxLayout, QWidget
@@ -22,10 +23,14 @@ from qfluentwidgets import (
     TextEdit,
 )
 
-from ....core.translation.api import ApiProfile
+from ....application.config.interfaces import LOCAL_PARAMETERS, profile_for_model
+from ....application.tasks.models import model_spec
+from ....core.translation.api import ApiProfile, index_profile, local_api
+from ....core.translation.templates import BUILTIN_TEMPLATES
 
-# Connection defaults only; model availability remains service-controlled.
+# 连接预设；模型可用性由服务端决定。
 PLATFORM_PRESETS = (
+    ("gguf", "本地 GGUF", "local", "openai", ""),
     ("lm_studio", "LM Studio", "local", "openai", "http://127.0.0.1:1234/v1"),
     ("ollama", "Ollama", "local", "openai", "http://127.0.0.1:11434/v1"),
     ("llama_server", "llama-server", "local", "openai", "http://127.0.0.1:8080/v1"),
@@ -33,6 +38,7 @@ PLATFORM_PRESETS = (
     ("anthropic", "Anthropic", "online", "anthropic", "https://api.anthropic.com/v1"),
     ("gemini", "Gemini", "online", "gemini", "https://generativelanguage.googleapis.com/v1beta"),
     ("deepseek", "DeepSeek", "online", "openai", "https://api.deepseek.com/v1"),
+    ("index", "Index 官方免费", "online", "openai", "https://index-translate.bilibili.com/v1"),
     ("opencode", "OpenCode Zen", "online", "openai", "https://opencode.ai/zen/v1"),
     ("opencode_go", "OpenCode Go", "online", "openai", "https://opencode.ai/zen/go/v1"),
     ("custom", "自定义接口", "custom", "openai", ""),
@@ -100,9 +106,10 @@ class DialogBase(MessageBoxBase):
 
 
 class ApiDetailsForm(QWidget):
-    def __init__(self, profile, parent=None):
+    def __init__(self, profile, parent=None, settings=None):
         super().__init__(parent)
         self.original = profile
+        self.catalog = settings.templates() if settings else dict(BUILTIN_TEMPLATES)
         box = QVBoxLayout(self)
         box.setContentsMargins(0, 8, 0, 8)
         box.setSpacing(10)
@@ -129,8 +136,17 @@ class ApiDetailsForm(QWidget):
         for label, value in (("按地址自动识别", "auto"), ("本地接口", "local"), ("官方接口", "online"), ("自定义接口", "custom")):
             self.group.addItem(label, userData=value)
         self.group.setCurrentIndex(self.group.findData(profile.group))
+        self.kind = ComboBox(self)
+        self.kind.addItem("专用翻译模型", userData="translation")
+        self.kind.addItem("大模型", userData="llm")
+        self.kind.setCurrentIndex(self.kind.findData(profile.interface_type))
+        self.template = ComboBox(self)
+        self.fill_templates(profile.template_id)
+        self.kind.currentIndexChanged.connect(lambda: self.fill_templates())
         for title, description, widget in (
             ("接口名称", "在接口列表中显示的名称", self.name),
+            ("接口类型", "专用翻译模型或通用大模型", self.kind),
+            ("翻译模板", "在提示词模块创建模板，再在此绑定；系统预设也可编辑", self.template),
             ("接口分组", "本地部署、官方服务或自定义服务", self.group),
             ("接口格式", "使用服务支持的请求协议", self.protocol),
             ("接口地址", "保留代理的版本路径；主机地址会补全默认路径", self.url),
@@ -141,16 +157,27 @@ class ApiDetailsForm(QWidget):
             setting_row(box, title, description, widget)
         box.addStretch()
 
+    def fill_templates(self, selected=None):
+        selected = selected or self.template.currentData()
+        self.template.clear()
+        for template in self.catalog.values():
+            if template.interface_type == self.kind.currentData():
+                self.template.addItem(template.name, userData=template.id)
+        self.template.setCurrentIndex(max(0, self.template.findData(selected)))
+
     def collect(self):
+        template = self.catalog[self.template.currentData()]
+        mode = "custom" if self.kind.currentData() == "llm" else template.family if template.family in {"hy_mt", "index"} else "translation"
         return replace(self.original, name=self.name.text().strip(), base_url=self.url.text().strip(),
                        model=self.model.text().strip(), api_key=self.key.text().strip(), key_env=self.key_env.text().strip(),
-                       protocol=self.protocol.currentData(), group=self.group.currentData())
+                       protocol=self.protocol.currentData(), group=self.group.currentData(),
+                       interface_type=self.kind.currentData(), template_id=template.id, prompt_mode=mode)
 
 
 class ApiEditDialog(DialogBase):
     def __init__(self, profile, parent):
         super().__init__("编辑接口 · " + profile.name, "修改连接信息；模型生成参数在“调整参数”中设置。", parent)
-        self.details = ApiDetailsForm(profile, self.widget)
+        self.details = ApiDetailsForm(profile, self.widget, parent.settings)
         self.add_scroller(self.details)
 
     def validate(self):
@@ -198,9 +225,20 @@ class AddApiDialog(DialogBase):
         basic_box.addStretch()
         self.platform_scroll = self._create_scroller(basic, self.stack)
         self.stack.addWidget(self.platform_scroll)
-        self.details = ApiDetailsForm(ApiProfile(id=uuid4().hex), self.widget)
+        self.details = ApiDetailsForm(ApiProfile(id=uuid4().hex), self.widget, parent.settings)
         scroll = self._create_scroller(self.details, self.stack)
         self.stack.addWidget(scroll)
+        from .local import LocalDetailsForm
+        current = parent.settings.current_local_profile()
+        variant = current.download_variant if current else parent.settings.download_variant
+        spec = model_spec(variant)
+        profile = profile_for_model(str(spec.path), spec.template_id, variant, profile_id=uuid4().hex,
+                                    parameters={key: getattr(parent.settings, key) for key in LOCAL_PARAMETERS})
+        self.local_details = LocalDetailsForm(profile, parent.settings, self.widget)
+        self.stack.addWidget(self._create_scroller(self.local_details, self.stack))
+        self.download_local = False
+        self.local_details.source.currentIndexChanged.connect(self.update_local_button)
+        self.local_details.model.textChanged.connect(self.update_local_button)
         self.back = PushButton("上一步", self.buttonGroup)
         self.back.clicked.connect(self.previous_step)
         self.buttonLayout.insertWidget(0, self.back)
@@ -212,6 +250,7 @@ class AddApiDialog(DialogBase):
         for name, button in self.platform_buttons.items():
             button.setChecked(name == key)
         hint = {
+            "index": "Index-Translate 官方免费服务，无需密钥；默认 35B-A3B 模型与 Index 专用翻译模板。",
             "deepseek": "填写 DeepSeek 平台的模型名称和 API Key。",
             "opencode": "OpenCode Zen 按模型使用不同协议：默认 OpenAI 兼容，Claude 选择 Anthropic；暂不支持 Responses 协议。模型名无需 opencode/ 前缀。",
             "opencode_go": "OpenCode Go / Go Plus 使用套餐专用地址和 API Key，模型名无需 opencode-go/ 前缀。按模型选择 OpenAI 兼容或 Anthropic；暂不支持 Responses。官方 Go 面向编程代理，批量翻译适用性须向服务方确认。",
@@ -221,13 +260,13 @@ class AddApiDialog(DialogBase):
         self.details.model.setPlaceholderText(placeholder.get(key, "填写服务支持的模型名称"))
         self.details.model.setToolTip(hint)
         self.details.platform_hint.setText(hint)
-        self.details.platform_hint.setVisible(key in {"deepseek", "opencode", "opencode_go"})
+        self.details.platform_hint.setVisible(key in {"deepseek", "opencode", "opencode_go", "index"})
         if not self.name.text().strip() or self.name.text() in {p[1] for p in PLATFORM_PRESETS}:
             self.name.setText(self.selected_preset[1])
         self.error.clear()
 
     def previous_step(self):
-        self.name.setText(self.details.name.text())
+        self.name.setText(self.local_details.name.text() if self.stack.currentIndex() == 2 else self.details.name.text())
         self.stack.setCurrentIndex(0)
         self.steps.setText("1 · 选择平台")
         self.yesButton.setText("下一步")
@@ -240,7 +279,15 @@ class AddApiDialog(DialogBase):
                 self.error.setText("请填写接口名称并选择一个平台")
                 return False
             _, _, group, protocol, url = self.selected_preset
-            # Preserve entered credentials/model when going back to the same platform.
+            if self.selected_preset[0] == "gguf":
+                if self.name.text().strip() != "本地 GGUF":
+                    self.local_details.name.setText(self.name.text().strip())
+                self.stack.setCurrentIndex(2)
+                self.steps.setText("2 · 配置本地模型")
+                self.back.show()
+                self.update_local_button()
+                return False
+            # 返回同一平台时保留已经填写的模型和凭据。
             if getattr(self, "details_preset", None) != self.selected_preset[0]:
                 self.details.url.setText(url)
                 self.details.model.clear()
@@ -248,6 +295,18 @@ class AddApiDialog(DialogBase):
                 self.details.key_env.clear()
                 self.details.protocol.setCurrentIndex(self.details.protocol.findData(protocol))
                 self.details.group.setCurrentIndex(self.details.group.findData(group))
+                self.details.original = replace(self.details.original, concurrency=1 if local_api(url, group) else 3)
+                if self.selected_preset[0] == "index":
+                    preset = index_profile()
+                    self.details.original = replace(preset, id=self.details.original.id)
+                    self.details.model.setText(preset.model)
+                    self.details.kind.setCurrentIndex(self.details.kind.findData("translation"))
+                    self.details.fill_templates("index")
+                else:
+                    self.details.original = replace(ApiProfile(id=self.details.original.id),
+                                                    concurrency=1 if local_api(url, group) else 3)
+                    self.details.kind.setCurrentIndex(self.details.kind.findData("llm"))
+                    self.details.fill_templates("mc")
                 self.details_preset = self.selected_preset[0]
             self.details.name.setText(self.name.text().strip())
             self.stack.setCurrentIndex(1)
@@ -256,7 +315,23 @@ class AddApiDialog(DialogBase):
             self.back.show()
             self.error.clear()
             return False
-        return self.accept_profile(self.details.collect())
+        if self.stack.currentIndex() == 2:
+            try:
+                profile = self.local_details.collect(require_file=True)
+            except ValueError as exc:
+                self.error.setText(str(exc))
+                return False
+            self.download_local = self.local_details.source.currentData() == "preset" and not Path(profile.model).is_file()
+            return self.accept_profile(profile)
+        profile = self.details.collect()
+        profile.concurrency = 1 if local_api(profile.base_url, profile.group) else 3
+        return self.accept_profile(profile)
+
+    def update_local_button(self):
+        if self.stack.currentIndex() != 2:
+            return
+        missing = self.local_details.source.currentData() == "preset" and not Path(self.local_details.model.text()).is_file()
+        self.yesButton.setText("添加并下载" if missing else "添加接口")
 
 
 class ApiParametersDialog(DialogBase):
@@ -267,9 +342,6 @@ class ApiParametersDialog(DialogBase):
         box = QVBoxLayout(content)
         box.setContentsMargins(0, 8, 0, 8)
         box.setSpacing(10)
-        self.prompt = ComboBox(content)
-        self.prompt.addItems(["MC 翻译提示词（可编辑）", "HY-MT-2 固定模板"])
-        self.prompt.setCurrentIndex(1 if profile.prompt_mode == "hy_mt" else 0)
         self.temperature = DoubleSpinBox(content)
         self.temperature.setRange(0, 1 if profile.protocol == "anthropic" else 2)
         self.temperature.setSingleStep(0.1)
@@ -281,7 +353,6 @@ class ApiParametersDialog(DialogBase):
         self.token_parameter.setCurrentText(profile.token_parameter)
         self.token_parameter.setEnabled(profile.protocol == "openai")
         for title, description, widget in (
-            ("提示词模式", "HY-MT-2 模式使用固定模板，支持 OpenAI 兼容协议", self.prompt),
             ("采样温度", "较低值通常使输出更稳定", self.temperature),
             ("温度开关", "模型不支持温度参数时关闭", self.send_temperature),
             ("输出上限参数", "OpenAI 兼容服务的输出 token 参数名称", self.token_parameter),
@@ -322,8 +393,7 @@ class ApiParametersDialog(DialogBase):
         self.add_scroller(content)
 
     def validate(self):
-        profile = replace(self.original, prompt_mode="hy_mt" if self.prompt.currentIndex() else "custom",
-                          temperature=self.temperature.value(), send_temperature=self.send_temperature.isChecked(),
+        profile = replace(self.original, temperature=self.temperature.value(), send_temperature=self.send_temperature.isChecked(),
                           token_parameter=self.token_parameter.currentText(), extra_body=self.extra.toPlainText(),
                           request_interval=self.interval.value(), **{key: w.value() for key, w in self.numbers.items()})
         return self.accept_profile(profile)

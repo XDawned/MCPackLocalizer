@@ -117,9 +117,14 @@ class MainWindow(FluentWindow):
         self.workspace.engine.setText("当前翻译引擎：" + settings.engine_label())
         self.workspace.translation.refresh_script_profiles()
         self.review.refresh_polish_profiles()
-        self.playground.engine.setText("当前翻译引擎：" + settings.engine_label())
-        self.settings_page.sync_engine(settings.engine)
-        self.api.sync_active()
+        self.playground.refresh()
+        if (previous.model != settings.model or previous.active_local != settings.active_local or
+                any(getattr(previous, key) != getattr(settings, key) for key in
+                    ("runtime_python", "backend", "threads", "gpu_layers", "context_size", "max_tokens", "term_tokens", "timeout"))):
+            self.settings_page.restore(settings)
+        else:
+            self.settings_page.sync_engine(settings.engine)
+        self.api.refresh()
         self.workspace.refresh_languages()
         for name, widgets in (("output_allow_partial", (self.workspace.partial, self.review.partial)),
                               ("output_replace_locale", (self.workspace.replace, self.review.replace)),
@@ -161,7 +166,7 @@ class MainWindow(FluentWindow):
             self.runner.start(arguments)
             if label == "模型下载":
                 self.switchTo(self.api)
-            elif label not in {"单条翻译", "保存审核", "继续翻译", "导出补丁", "接口试译", "API 批量修润", "接受修润结果"}:
+            elif label not in {"单条翻译", "提示词预览", "保存审核", "继续翻译", "导出补丁", "接口试译", "API 批量修润", "接受修润结果"}:
                 self.switchTo(self.workspace)
         except (ValueError, OSError, RuntimeError) as exc:
             self.notify(str(exc), error=True)
@@ -205,9 +210,16 @@ class MainWindow(FluentWindow):
             if self.closing:
                 QTimer.singleShot(0, self.close)
             return
+        if self.pending_label == "提示词预览":
+            self.playground.show_preview(result, cancelled)
+            if "error" in result and not cancelled:
+                self.notify(result["error"], error=True)
+            if self.closing:
+                QTimer.singleShot(0, self.close)
+            return
         self.workspace.show_result(result, cancelled)
         if self.pending_label == "单条翻译":
-            self.playground.show_result(result)
+            self.playground.show_result(result, cancelled)
         if self.pending_label == "接口试译":
             self.api.show_result(result)
         if self.closing:

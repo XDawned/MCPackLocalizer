@@ -40,7 +40,8 @@ def test_recognition_translation_and_review_keep_original_language_pair(tmp_path
     scan = load_task(str(output))
     assert (scan.source_locale, scan.target_locale) == ("ja_jp", "en_us")
     assert scan.metadata["model_config"]["target_locale"] == "en_us"
-    assert "English (en_us)" in json.loads(requests[0].content)["messages"][-1]["content"]
+    user = json.loads(requests[0].content)["messages"][-1]["content"]
+    assert "日语（ja_jp）" in user and "英语（美国）（en_us）" in user
     execute(review_job(str(output), scan.entries[0].id, "Steel Sword"))
     execute(task_job("export", str(output), current, PatchOptions()))
     patch = output / "patch/kubejs/assets/demo/lang/en_us.json"

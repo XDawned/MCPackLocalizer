@@ -1,5 +1,6 @@
 # [Module: desktop.settings_page] [Status: 已完成] [Brief: 分组设置卡片、主题色与关于信息]
 from dataclasses import replace
+from pathlib import Path
 
 from PyQt6.QtCore import QSignalBlocker, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices
@@ -21,6 +22,7 @@ from qfluentwidgets import (
 
 from ... import __version__
 from ...application.tasks.jobs import Job
+from ...application.tasks.models import MODEL_VARIANTS
 from ...core.translation.locales import LANGUAGES
 from ..components.forms import ComboSettingCard, Page, PaletteSettingCard, PathSettingCard, SpinSettingCard
 
@@ -46,8 +48,8 @@ class SettingsPage(Page):
 
         engine_group = group("翻译引擎")
         self.engine = ComboSettingCard(
-            FIF.ROBOT, "翻译引擎", "本地 GGUF 使用固定 HY-MT-2 模板；API 接口在“接口管理”中添加和选择。", engine_group)
-        self.engine.addItem("本地 HY-MT-2 GGUF", "local")
+            FIF.ROBOT, "翻译引擎", "本地和 API 均使用接口绑定的模板；在“接口管理”中添加和选择。", engine_group)
+        self.engine.addItem("本地专用翻译 GGUF", "local")
         self.engine.addItem("API 接口（远程 / 本地服务）", "api")
         engine_group.addSettingCard(self.engine)
 
@@ -55,14 +57,14 @@ class SettingsPage(Page):
         self.source_language = ComboSettingCard(
             FIF.LANGUAGE, "原文语言", "新任务按所选语言识别；已有任务保留创建时的语言。", language_group)
         self.target_language = ComboSettingCard(
-            FIF.LANGUAGE, "译文语言", "HY-MT-2 固定模板输出中文；其它输出语言使用 API 的 MC 提示词模式。", language_group)
+            FIF.LANGUAGE, "译文语言", "HY-MT-2 输出中文；Index-Translate 与大模型可选择其它语言。", language_group)
         for code, label, _ in LANGUAGES:
             for card in (self.source_language, self.target_language):
                 card.addItem(f"{label} · {code}", code)
         language_group.addSettingCards([self.source_language, self.target_language])
 
         runtime_group = group("本地推理")
-        self.model = PathSettingCard("选择文件", FIF.DOCUMENT, "HY-MT-2 GGUF 模型", mode="file",
+        self.model = PathSettingCard("选择文件", FIF.DOCUMENT, "专用翻译 GGUF 模型", mode="file",
                                      file_filter="GGUF 模型 (*.gguf)", placeholder="未选择模型文件", parent=runtime_group)
         self.runtime = PathSettingCard("选择解释器", FIF.DEVELOPER_TOOLS, "推理解释器",
                                        "留空自动使用内置运行时，也可选择外部 Python 3.12 解释器", mode="file",
@@ -176,7 +178,12 @@ class SettingsPage(Page):
             self._loading = False
 
     def collect(self):
-        settings = replace(self.window.settings, model=self.model.text(), runtime_python=self.runtime.text(),
+        base = self.window.settings
+        if self.model.text() != base.model:
+            variant = next((key for key, spec in MODEL_VARIANTS.items() if Path(self.model.text()).name == spec.filename),
+                           base.download_variant)
+            base = base.select_local_model(self.model.text(), variant)
+        settings = replace(base, model=self.model.text(), runtime_python=self.runtime.text(),
                            backend=self.backend.currentText(), glossary=self.glossary.text(),
                            overrides=self.overrides.text(), glossary_enabled=self.glossary_enabled.isChecked(),
                            allow_missing_placeholders=self.missing.isChecked(),
@@ -186,6 +193,7 @@ class SettingsPage(Page):
                            output_allow_partial=self.partial.isChecked(),
                            output_replace_locale=self.replace_locale.isChecked(), output_include_i18n=self.include_i18n.isChecked(),
                            **{key: card.value() for key, card in self.numbers.items()})
+        settings = settings.sync_local_parameters()
         settings.validate()
         return settings
 

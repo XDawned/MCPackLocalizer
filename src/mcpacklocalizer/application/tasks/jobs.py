@@ -14,12 +14,12 @@ from .models import model_spec
 OPERATIONS = frozenset({"scan", "extract", "localize", "diff", "resume", "export", "review",
                         "doctor", "translate", "extract-lang", "backfill", "convert-lang",
                         "scan-mods", "extract-mods", "localize-mods", "mod-library", "download-model", "polish", "polish-accept",
-                        "resource-exclusion"})
+                        "resource-exclusion", "preview-prompt"})
 PATH_FIELDS = {"root", "output", "baseline", "source", "bundle", "lang", "cache", "translation_library",
                "i18n_jar", "i18n_metadata", "i18n_metadata_jar"}
 PATH_LISTS = {"cfpa_pack", "resource_pack"}
 BOOLEAN_FIELDS = {"probe", "no_glossary", "allow_partial", "replace_existing_locale", "include_i18n_mod",
-                  "offline", "include_drafts", "allow_missing_placeholders", "api_send_temperature"}
+                  "offline", "include_drafts", "allow_missing_placeholders", "api_send_temperature", "capture_prompts"}
 INTEGER_FIELDS = {"threads", "gpu_layers", "context_size", "max_tokens", "term_tokens", "sample", "limit", "record_id",
                   "concurrency", "retries"}
 
@@ -63,6 +63,11 @@ class Job:
     api_token_parameter: str | None = None
     api_extra_body: str | None = None
     system_prompt: str | None = None
+    prompt_template_id: str | None = None
+    prompt_family: str | None = None
+    model_family: str | None = None
+    capture_prompts: bool | None = None
+    prompt_user: str | None = None
     glossary_inline: str | None = None
     non_translate: str | None = None
     concurrency: int | None = None

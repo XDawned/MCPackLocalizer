@@ -12,10 +12,12 @@ from mcpacklocalizer.core.translation.api import ApiProfile
 from mcpacklocalizer.core.translation.local import DEFAULT_GLOSSARY, DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT
 from mcpacklocalizer.core.translation.locales import validate_pair
 from mcpacklocalizer.core.translation.polishing import DEFAULT_POLISH_PROMPT
+from mcpacklocalizer.core.translation.templates import detect_model_family, legacy_mc_template, template_catalog
 
 from ...paths import PROJECT, migrated_path
 from ...runtime import bundled_python
 from ..tasks.models import model_spec
+from .interfaces import LEGACY_LOCAL_ID, LOCAL_PARAMETERS, LocalProfile, profile_for_model
 
 
 @dataclass
@@ -41,6 +43,11 @@ class Settings:
     active_api: str = ""
     api_profiles: list[dict] = field(default_factory=list, repr=False)
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
+    prompt_templates: list[dict] = field(default_factory=list)
+    local_template_id: str = "hy_mt"
+    local_model_templates: dict[str, str] = field(default_factory=dict)
+    local_profiles: list[dict] = field(default_factory=list)
+    active_local: str = ""
     glossary_inline: str = "{}"
     non_translate: str = ""
     output_allow_partial: bool = False
@@ -74,8 +81,7 @@ class Settings:
             value = data.get(item.name)
             if type(value) is type(values[item.name]):
                 values[item.name] = value
-        # Old releases shared local budgets and API limits. Seed missing profile
-        # fields once; later saves and newly added interfaces are independent.
+        # 旧版共享参数只迁移一次；已有接口的显式参数保留。
         migrated_profiles = []
         profile_defaults = asdict(ApiProfile())
         for profile in values["api_profiles"]:
@@ -86,15 +92,31 @@ class Settings:
                          "concurrency", "retries", "request_interval"):
                 if name not in profile and type(data.get(name)) is type(profile_defaults[name]):
                     profile[name] = data[name]
-            migrated_profiles.append(profile)
+            try:
+                migrated_profiles.append(asdict(ApiProfile(**profile)))
+            except (TypeError, ValueError):
+                return cls.defaults()
         values["api_profiles"] = migrated_profiles
+        if "prompt_templates" not in data and values["system_prompt"] != DEFAULT_SYSTEM_PROMPT:
+            values["prompt_templates"] = [asdict(legacy_mc_template(values["system_prompt"]))]
         result = cls(**values)
         result.glossary = migrated_path(result.glossary)
         result.overrides = migrated_path(result.overrides)
         result.output_home = migrated_path(result.output_home)
         try:
+            if "local_profiles" not in data:
+                entries = []
+                parameters = {key: getattr(result, key) for key in LOCAL_PARAMETERS}
+                if result.model and (data.get("model") or Path(result.model).is_file()):
+                    entries.append(profile_for_model(result.model, result.local_template_id, result.download_variant,
+                                                     profile_id=LEGACY_LOCAL_ID, parameters=parameters))
+                for model, template_id in result.local_model_templates.items():
+                    if not any(Path(p.model) == Path(model) for p in entries):
+                        entries.append(profile_for_model(model, template_id, result.download_variant, parameters=parameters))
+                result.local_profiles = [asdict(p) for p in entries]
+                result.active_local = entries[0].id if entries else ""
             result.validate()
-        except ValueError:
+        except (ValueError, TypeError):
             return cls.defaults()
         return result
 
@@ -110,15 +132,43 @@ class Settings:
         if self.engine not in {"local", "api"}:
             raise ValueError("请选择本地 GGUF 或 API 翻译")
         ids = set()
+        catalog = self.templates()
+        local_template = catalog.get(self.local_template_id)
+        if local_template is None or local_template.interface_type != "translation":
+            raise ValueError("本地 GGUF 请选择专用翻译模型模板")
+        for model, template_id in self.local_model_templates.items():
+            if not isinstance(model, str) or not model or not isinstance(template_id, str):
+                raise ValueError("本地模型模板绑定字段无效")
+            template = catalog.get(template_id)
+            if template is None or template.interface_type != "translation":
+                raise ValueError("本地模型绑定的专用翻译模板不存在")
+        local_ids = set()
+        for profile in self.local_interfaces():
+            profile.validate()
+            if profile.id in local_ids:
+                raise ValueError("本地接口标识重复")
+            local_ids.add(profile.id)
+            template = catalog.get(profile.template_id)
+            if template is None or template.interface_type != "translation":
+                raise ValueError("本地接口绑定的专用翻译模板不存在")
+        if self.active_local and self.active_local not in local_ids:
+            raise ValueError("当前本地接口不存在")
         for data in self.api_profiles:
             try:
                 profile = ApiProfile(**data)
             except TypeError:
                 raise ValueError("接口配置字段无效") from None
             profile.validate(require_model=False)
+            template = catalog.get(profile.template_id)
+            if template is None or template.interface_type != profile.interface_type:
+                raise ValueError("接口绑定的翻译模板不存在或类型不匹配")
+            if template.family in {"hy_mt", "index"} and profile.protocol != "openai":
+                raise ValueError("HY-MT-2 和 Index-Translate 模板使用 OpenAI 兼容协议")
             if profile.id in ids:
                 raise ValueError("接口标识重复")
             ids.add(profile.id)
+            if profile.id in local_ids:
+                raise ValueError("本地与 API 接口标识不能重复")
         if self.active_api and self.active_api not in ids:
             raise ValueError("当前接口不存在")
         if self.script_api and self.script_api not in ids:
@@ -142,22 +192,35 @@ class Settings:
         args = {key: getattr(self, key) for key in (
             "backend", "runtime_python", "threads", "gpu_layers", "context_size", "max_tokens",
             "term_tokens", "timeout", "allow_missing_placeholders")}
-        args.update(engine=self.engine, system_prompt=self.system_prompt, non_translate=self.non_translate,
+        args.update(engine=self.engine, non_translate=self.non_translate,
                     source_locale=self.source_locale, target_locale=self.target_locale,
                     glossary_inline=self.glossary_inline)
         if self.engine == "api":
             profile = self.selected_profile()
             profile.validate()
+            template = self.templates()[profile.template_id]
             args.update({key: getattr(profile, key) for key in (
                 "context_size", "max_tokens", "term_tokens", "timeout", "concurrency", "retries", "request_interval")})
             args["request_timeout"] = profile.timeout
             args.update(api_profile_id=profile.id, api_protocol=profile.protocol, api_base_url=profile.base_url,
-                        api_model=profile.model, api_key_env=profile.key_env, api_prompt_mode=profile.prompt_mode,
+                        api_model=profile.model, api_key_env=profile.key_env,
+                        api_prompt_mode="custom" if profile.interface_type == "llm" else
+                        template.family if template.family in {"hy_mt", "index"} else "translation",
                         api_temperature=float(profile.temperature), api_send_temperature=profile.send_temperature,
                         api_token_parameter=profile.token_parameter, api_extra_body=profile.extra_body,
                         credentials={profile.id: profile.resolved_key()})
-        elif self.model:
-            args["model"] = self.model
+        else:
+            local = self.current_local_profile()
+            template = self.templates()[local.template_id if local else self.local_template_id]
+            if local:
+                args.update(local.parameters)
+                args["model"] = local.model
+            elif self.model:
+                args["model"] = self.model
+        args.update(system_prompt=template.system, prompt_user=template.user,
+                    prompt_family=template.family, prompt_template_id=template.id,
+                    model_family=detect_model_family(profile.model, template.family) if self.engine == "api" else
+                    local.model_family if local else detect_model_family(self.model, template.family))
         if not self.glossary_enabled:
             args["no_glossary"] = True
             args["glossary_inline"] = "{}"
@@ -165,6 +228,99 @@ class Settings:
             args["glossary"] = self.glossary
             args["glossary_overrides"] = self.overrides
         return args
+
+    def templates(self):
+        return template_catalog(self.prompt_templates)
+
+    def store_template(self, template):
+        template.validate()
+        overrides = [dict(p) for p in self.prompt_templates if p["id"] != template.id]
+        overrides.append(asdict(template))
+        return replace(self, prompt_templates=overrides,
+                       system_prompt=template.system if template.id == "mc" else self.system_prompt)
+
+    def bind_local_template(self, template_id):
+        bindings = dict(self.local_model_templates)
+        if self.model:
+            bindings[str(Path(self.model))] = template_id
+        current = self.current_local_profile()
+        profiles = self.local_profiles
+        if current:
+            profiles = [asdict(replace(p, template_id=template_id)) if p.id == current.id else asdict(p)
+                        for p in self.local_interfaces()]
+        return replace(self, local_template_id=template_id, local_model_templates=bindings, local_profiles=profiles)
+
+    def local_interfaces(self):
+        parameters = {key: getattr(self, key) for key in LOCAL_PARAMETERS}
+        if self.local_profiles:
+            try:
+                profiles = [LocalProfile(**data) for data in self.local_profiles]
+                return [replace(p, parameters=parameters | p.parameters) if isinstance(p.parameters, dict) else p
+                        for p in profiles]
+            except (TypeError, AttributeError):
+                raise ValueError("本地接口配置字段无效") from None
+        if self.model and Path(self.model).is_file():
+            return [profile_for_model(self.model, self.local_template_id, self.download_variant,
+                                      profile_id=LEGACY_LOCAL_ID, parameters=parameters)]
+        return []
+
+    def current_local_profile(self):
+        profiles = self.local_interfaces()
+        return next((p for p in profiles if p.id == self.active_local), None) or next(
+            (p for p in profiles if Path(p.model) == Path(self.model)), None)
+
+    def use_local_profile(self, profile_id):
+        profile = next((p for p in self.local_interfaces() if p.id == profile_id), None)
+        if profile is None:
+            raise ValueError("本地接口不存在，请重新添加")
+        return replace(self, model=profile.model, engine="local", active_local=profile.id,
+                       local_profiles=[asdict(p) for p in self.local_interfaces()],
+                       local_template_id=profile.template_id, download_variant=profile.download_variant,
+                       **profile.parameters)
+
+    def store_local_profile(self, profile):
+        profile = replace(profile, parameters={key: getattr(self, key) for key in LOCAL_PARAMETERS} | profile.parameters)
+        profile.validate()
+        profiles = self.local_interfaces()
+        updated = [asdict(profile) if p.id == profile.id else asdict(p) for p in profiles]
+        if not any(p.id == profile.id for p in profiles):
+            updated.append(asdict(profile))
+        result = replace(self, local_profiles=updated)
+        current = self.current_local_profile()
+        if current and current.id == profile.id:
+            result = replace(result.use_local_profile(profile.id), engine=self.engine)
+        return result
+
+    def sync_local_parameters(self):
+        current = self.current_local_profile()
+        if not current or not self.local_profiles:
+            return self
+        profile = replace(current, parameters={key: getattr(self, key) for key in LOCAL_PARAMETERS})
+        return self.store_local_profile(profile)
+
+    def select_local_model(self, model, variant):
+        model = str(Path(model)) if model else ""
+        bindings = dict(self.local_model_templates)
+        if self.model:
+            bindings[str(Path(self.model))] = self.local_template_id
+        template_id = bindings.get(model, model_spec(variant).template_id)
+        if "index-translate" in Path(model).name.lower() and model not in bindings:
+            template_id = "index"
+        elif "hy-mt2" in Path(model).name.lower() and model not in bindings:
+            template_id = "hy_mt"
+        if model:
+            bindings[model] = template_id
+        if not model:
+            return replace(self, model="", active_local="", engine="local")
+        current = self.current_local_profile()
+        profile = next((p for p in self.local_interfaces() if Path(p.model) == Path(model)), None)
+        if current and Path(current.model) == Path(model):
+            profile = current
+        if profile is None:
+            profile = profile_for_model(model, template_id, variant,
+                                        parameters={key: getattr(self, key) for key in LOCAL_PARAMETERS})
+        result = self.store_local_profile(profile).use_local_profile(profile.id)
+        return replace(result, local_model_templates=bindings)
 
     def selected_profile(self):
         profile = next((data for data in self.api_profiles if data.get("id") == self.active_api), None)
@@ -174,7 +330,8 @@ class Settings:
 
     def interface_ready(self):
         if self.engine == "local":
-            return bool(self.model and Path(self.model).is_file())
+            profile = self.current_local_profile()
+            return bool(profile and Path(profile.model).is_file())
         try:
             self.selected_profile().validate()
         except ValueError:
@@ -184,10 +341,15 @@ class Settings:
     def script_options(self):
         if not self.script_api:
             return {}
+        selected = replace(self, engine="api", active_api=self.script_api)
+        if selected.selected_profile().interface_type != "llm":
+            raise ValueError("KubeJS 脚本翻译请选择大模型接口")
         from ...core.translation.local import ModelConfig
-        options = replace(self, engine="api", active_api=self.script_api).model_options()
+        options = selected.model_options()
         config = {key: value for key, value in options.items() if key in {f.name for f in fields(ModelConfig)}}
         config.update(engine="api", api_prompt_mode="custom", allow_missing_placeholders=False)
+        # 脚本翻译使用自己的结构化提示词，不套用普通条目的用户模板。
+        config.update(prompt_user="", prompt_family="mc")
         if "glossary_overrides" in options:
             config["overrides"] = options["glossary_overrides"]
         if options.get("no_glossary"):
@@ -200,7 +362,12 @@ class Settings:
 
     def engine_label(self):
         if self.engine == "local":
-            return "HY-MT-2 · 本地 GGUF"
+            profile = self.current_local_profile()
+            if profile:
+                return profile.name
+            name = {"index": "Index-Translate", "hy_mt": "HY-MT-2"}.get(
+                detect_model_family(self.model, "hy_mt"), "专用翻译模型")
+            return f"{name} · 本地 GGUF"
         try:
             profile = self.selected_profile()
             return f"{profile.name} · {profile.model or '未选择模型'}"

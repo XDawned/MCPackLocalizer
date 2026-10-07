@@ -1,5 +1,5 @@
 # [Module: desktop.api_cards] [Status: 已完成] [Brief: 分组接口卡片与激活、测试菜单]
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QStackedLayout, QVBoxLayout, QWidget
 from qfluentwidgets import (
     Action,
@@ -54,10 +54,11 @@ class ApiItemCard(QWidget):
     testClicked = pyqtSignal(str)
     editClicked = pyqtSignal(str)
     argsClicked = pyqtSignal(str)
+    promptClicked = pyqtSignal(str)
     copyClicked = pyqtSignal(str)
     deleteClicked = pyqtSignal(str)
 
-    def __init__(self, profile_id, name, description, *, builtin=False, parent=None):
+    def __init__(self, profile_id, name, description, *, builtin=False, local=False, parent=None):
         super().__init__(parent)
         self.profile_id = profile_id
         self.active = False
@@ -66,17 +67,18 @@ class ApiItemCard(QWidget):
         self.buttons = (DropDownPushButton(self), PrimaryDropDownPushButton(self))
         self.stack = QStackedLayout(self)
         self.stack.setContentsMargins(0, 0, 0, 0)
-        icon = FluentIcon.ROBOT if builtin else FluentIcon.CONNECT
+        icon = FluentIcon.ROBOT if builtin or local else FluentIcon.CONNECT
         for button in self.buttons:
-            button.setText(name)
+            button.setText(button.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, 202))
             button.setIcon(icon)
-            button.setFixedWidth(200)
-            button.setToolTip(description)
+            button.setFixedWidth(260)
+            button.setToolTip(name + "\n" + description)
             menu = RoundMenu(parent=button)
             entries = [
                 ("activate", "激活接口", FluentIcon.ACCEPT, self.activateClicked),
                 ("test", "测试接口", FluentIcon.SEND, self.testClicked),
                 ("edit", "模型与设置" if builtin else "编辑接口", FluentIcon.EDIT, self.editClicked),
+                ("prompts", "编辑翻译模板", FluentIcon.EDIT, self.promptClicked),
             ]
             if not builtin:
                 entries += [("args", "调整参数", FluentIcon.DEVELOPER_TOOLS, self.argsClicked),
@@ -90,8 +92,10 @@ class ApiItemCard(QWidget):
                 self.actions.setdefault(key, []).append(action)
                 menu.addAction(action)
             button.setMenu(menu)
+            button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            button.customContextMenuRequested.connect(lambda pos, menu=menu, button=button: menu.exec(button.mapToGlobal(pos)))
             self.stack.addWidget(button)
-        self.setFixedSize(200, self.buttons[0].sizeHint().height())
+        self.setFixedSize(260, self.buttons[0].sizeHint().height())
         self.set_active(False)
 
     def set_active(self, active):

@@ -6,7 +6,7 @@ import json
 import sys
 import zipfile
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import httpx
@@ -32,6 +32,7 @@ from ...core.translation.api import ApiClient, validate_api_config
 from ...core.translation.local import ModelConfig, WorkerClient, quality_warnings, validate_entry
 from ...core.translation.rules import NoTranslate
 from ...core.translation.script import ScriptApiClient
+from ...core.translation.templates import validate_translation_config
 from ...paths import migrated_path
 from ...runtime import inference_python
 from ..config.settings import validate_glossary
@@ -67,6 +68,7 @@ def config_for(args, saved=None):
         raise ValueError("concurrency、retries 或请求间隔无效")
     validate_glossary(values["glossary_inline"])
     config = ModelConfig(**values)
+    validate_translation_config(config)
     if config.engine == "api":
         validate_api_config(config)
     elif config.engine != "local":
@@ -215,8 +217,8 @@ def run_translation(store, args):
                 active_config.source_locale, active_config.target_locale = scan.source_locale, scan.target_locale
                 active_config.allow_missing_placeholders = False
                 scan.metadata["script_model_config"] = asdict(active_config)
-            elif (config.engine == "local" or config.api_prompt_mode == "hy_mt") and config.target_locale != "zh_cn":
-                raise ValueError("HY-MT-2 固定模板输出中文；此任务请使用 API 的 MC 提示词模式")
+            else:
+                validate_translation_config(config)
             candidates = {}
             for entry in scan.entries:
                 if bool(entry.script) == is_script and entry.translation is not None and entry.document not in excluded:
@@ -343,12 +345,25 @@ def execute(args: Job) -> dict:
                 result["runtime"] = model.info
                 result["probe_translation"] = model.translate("Iron Ingot")
         return result
+    if args.operation == "preview-prompt":
+        config = config_for(args)
+        if config.engine == "api":
+            # 预览只读取配置和术语，不解析密钥，也不创建 HTTP 会话。
+            return ApiClient(replace(config, api_key_env="")).preview(args.text, args.context)
+        with translation_client(config, args) as model:
+            return model.preview(args.text, args.context)
     if args.operation == "translate":
         config = config_for(args)
         with translation_client(config, args) as model:
-            translation = model.translate(args.text, args.context)
+            try:
+                translation = model.translate(args.text, args.context)
+            except (ValueError, RuntimeError, OSError) as exc:
+                if not config.capture_prompts:
+                    raise
+                return {"error": str(exc), "prompt_preview": model.prompt_previews}
             return {"source": args.text, "translation": translation, "runtime": model.info,
                     "quality_warnings": quality_warnings(args.text, translation),
+                    **({"prompt_preview": model.prompt_previews} if config.capture_prompts else {}),
                     **({"api_usage": model.usage_snapshot()} if config.engine == "api" else {})}
     if args.operation in {"scan", "extract", "localize", "diff"}:
         if "mods" in recognition_scopes(args.recognition_scope) and (args.source_locale, args.target_locale) != ("en_us", "zh_cn"):

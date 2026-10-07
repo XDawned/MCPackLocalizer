@@ -54,8 +54,11 @@ uv run ruff check src tests main.py                       # line-length 120 / py
 
 - 每个 `.py` 首行保留模块头注释 `# [Module: 名称] [Status: 已完成|开发中] [Brief: ...]`，新增文件照写。
 - 界面文案、注释、异常消息用中文。
-- HY-MT-2（本地 GGUF 与 API 专用模式）必须沿用固定模板且只输出中文，不读“翻译提示词”页的自定义提示词；
-  其它目标语言只能走 API 的 MC 提示词模式（校验见 `core/translation/local.py`、`api.py`）。
+- 接口分为专用翻译模型与大模型，使用 `core/translation/templates.py` 的完整系统/用户模板；系统预设也可编辑，
+  用户模板通过接口 `template_id` 绑定，本地模型绑定独立记忆。HY-MT-2 仍只支持中文，Index-Translate 支持其它目标语言。
+  新任务保存模板快照，旧任务保留原有提示词行为；本地 API 默认并发 1，远端默认 3，已有显式值不能覆盖。
+- 本地 GGUF 通过“添加接口”弹窗添加，配置在 `Settings.local_profiles` 中独立保存，`active_local` 选择当前本地接口。
+  旧 `model` / `local_model_templates` 会迁移；模型身份与模板格式分别使用 `model_family` / `prompt_family`，不要用模板重命名模型。
 - 占位符默认严格校验（`allow_missing_placeholders` 可放宽），保留“先直译、失败再掩码兜底”的两段策略。
 
 ## 测试注意
@@ -64,10 +67,8 @@ uv run ruff check src tests main.py                       # line-length 120 / py
   `QT_QPA_PLATFORM=offscreen`，无需真实显示器。
 - 测试不写真实磁盘：`tests/conftest.py` 的 `memory_files` fixture 在类级别 mock `pathlib.Path` 的方法，
   涉及文件系统的测试复用它或 `tmp_path`。
-- 当前未提交的重构工作树有 3 个已知失败，改动前先确认与本次无关：
-  `tests/core/pack/test_kubejs.py::test_js_user_examples_and_language_keys`、
-  `tests/core/translation/test_api_translation.py::test_default_system_prompt_uses_selected_languages_on_both_attempts`、
-  `tests/application/config/test_settings.py::test_legacy_shared_limits_migrate_once_without_overwriting_profile_values`。
+- 当前有 1 个已知失败，与接口和提示词模板重构无关：
+  `tests/core/pack/test_kubejs.py::test_js_user_examples_and_language_keys`。
 
 ## 本机工具
 

@@ -246,7 +246,7 @@ class ReviewPage(Page):
         self.polish_api.clear()
         self.polish_api.addItem("请选择已配置的 API", userData="")
         for profile in self.window.settings.api_profiles:
-            if profile.get("prompt_mode", "custom") == "custom":
+            if profile.get("interface_type", "llm" if profile.get("prompt_mode", "custom") == "custom" else "translation") == "llm":
                 self.polish_api.addItem(f"{profile['name']} · {profile.get('model') or '未填写模型'}", userData=profile["id"])
         self.polish_api.setCurrentIndex(max(0, self.polish_api.findData(selected)))
         del blocker
