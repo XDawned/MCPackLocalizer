@@ -1,11 +1,13 @@
 # [Module: tests.release] [Status: 已完成] [Brief: 发布时拒绝错误来源、混合批次与被修改的构建产物]
 import json
+import subprocess
 import urllib.error
 import zipfile
 
 import pytest
 
 from scripts.build_release import native_runtime
+from scripts.publish_beta import publish_beta
 from scripts.publish_release import checked_run, digest, publish, validate_assets
 
 
@@ -127,3 +129,97 @@ def test_vendor_runtime_extracts_dlls_and_licenses_without_path_escape(tmp_path,
     assert (directory / "licenses/vendor/vendor.dist-info/licenses/LICENSE").read_bytes() == b"license"
     assert not (tmp_path / "escaped.dll").exists()
     assert not list(directory.rglob("*.h"))
+
+
+@pytest.fixture
+def beta_environment(release_assets, monkeypatch, mocker):
+    directory, run = release_assets
+    for key, value in {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_SHA": run["head_sha"],
+                       "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_EVENT_NAME": "push",
+                       "GITHUB_REF": "refs/heads/v2.0.0"}.items():
+        monkeypatch.setenv(key, value)
+    mocker.patch("scripts.publish_beta.project_version", return_value="2.0.0")
+    api = mocker.patch("scripts.publish_beta.api", return_value={"object": {"sha": run["head_sha"]}})
+    releases = mocker.patch("scripts.publish_beta.release_for", return_value=None)
+    tags = mocker.patch("scripts.publish_beta.tag_commit", return_value=None)
+    commands = mocker.patch("scripts.publish_beta.subprocess.run")
+    return directory, run, api, releases, tags, commands
+
+
+def test_beta_publishes_all_same_run_assets_without_marking_latest(beta_environment):
+    directory, run, _, _, _, commands = beta_environment
+    publish_beta(directory)
+    create, upload, ref, publish_command = [call.args[0] for call in commands.call_args_list]
+    assert "--draft" in create and "--prerelease" in create
+    assert create[create.index("--target") + 1] == run["head_sha"]
+    assert set(upload[5:-2]) == {str(path) for path in directory.iterdir()}
+    assert "ref=refs/tags/Beta" in ref and f"sha={run['head_sha']}" in ref
+    assert "--tag" in publish_command and "Beta" in publish_command
+    assert "--draft=false" in publish_command and "--latest=false" in publish_command
+
+
+def test_beta_replaces_only_beta_after_uploading_new_draft(beta_environment):
+    directory, _, _, releases, tags, commands = beta_environment
+    beta = {"id": 7, "draft": False, "prerelease": True}
+    releases.side_effect = [beta, None, beta]
+    tags.side_effect = ["b" * 40, None, "b" * 40]
+    publish_beta(directory)
+    calls = [call.args[0] for call in commands.call_args_list]
+    assert calls[1][:4] == ["gh", "release", "upload", "beta-build-123-1"]
+    assert calls[2][:4] == ["gh", "release", "delete", "Beta"]
+    assert "--cleanup-tag" not in calls[2]
+    assert "PATCH" in calls[3] and "force=true" in calls[3]
+    assert all("v2.0.0" not in command for command in calls)
+
+
+def test_beta_upload_failure_keeps_previous_public_release(beta_environment):
+    directory, _, _, releases, tags, commands = beta_environment
+    releases.side_effect = [{"id": 7, "draft": False, "prerelease": True}, None]
+    tags.side_effect = ["b" * 40, None]
+    commands.side_effect = [None, subprocess.CalledProcessError(1, ["gh", "release", "upload"])]
+    with pytest.raises(subprocess.CalledProcessError):
+        publish_beta(directory)
+    assert commands.call_count == 2
+
+
+def test_beta_refuses_tampered_assets_before_remote_calls(beta_environment):
+    directory, _, api, _, _, commands = beta_environment
+    next(directory.glob("*.zip")).write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="校验失败"):
+        publish_beta(directory)
+    api.assert_not_called()
+    commands.assert_not_called()
+
+
+def test_beta_never_replaces_a_stable_release(beta_environment):
+    directory, _, _, releases, _, commands = beta_environment
+    releases.return_value = {"id": 7, "draft": False, "prerelease": False}
+    with pytest.raises(ValueError, match="正式版本"):
+        publish_beta(directory)
+    commands.assert_not_called()
+
+
+@pytest.mark.parametrize("after_upload", [False, True])
+def test_beta_skips_a_superseded_build(beta_environment, after_upload):
+    directory, run, api, _, _, commands = beta_environment
+    heads = [{"object": {"sha": "b" * 40}}]
+    api.side_effect = [{"object": {"sha": run["head_sha"]}}, *heads] if after_upload else heads
+    publish_beta(directory)
+    assert commands.call_count == (2 if after_upload else 0)
+
+
+def test_beta_refuses_concurrent_manual_release_changes(beta_environment):
+    directory, _, _, releases, _, commands = beta_environment
+    releases.side_effect = [None, None, {"id": 99, "prerelease": True}]
+    with pytest.raises(ValueError, match="其它操作修改"):
+        publish_beta(directory)
+    assert commands.call_count == 2
+
+
+def test_beta_requires_development_branch(beta_environment, monkeypatch):
+    directory, _, api, _, _, commands = beta_environment
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/feature")
+    with pytest.raises(ValueError, match="v2.0.0 分支"):
+        publish_beta(directory)
+    api.assert_not_called()
+    commands.assert_not_called()

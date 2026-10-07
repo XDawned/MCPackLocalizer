@@ -3,8 +3,6 @@ import pytest
 
 KNOWN_FAILURES = {
     "tests/core/pack/test_kubejs.py::test_js_user_examples_and_language_keys",
-    "tests/core/translation/test_api_translation.py::test_default_system_prompt_uses_selected_languages_on_both_attempts",
-    "tests/application/config/test_settings.py::test_legacy_shared_limits_migrate_once_without_overwriting_profile_values",
 }
 
 

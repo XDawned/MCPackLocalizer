@@ -4,8 +4,18 @@
 
 ## GitHub Actions
 
+### 自动 Beta 测试版
+
+向 `v2.0.0` 分支推送构建相关文件，或在该分支手动运行“构建 Windows 测试包”，会依次执行自动检查、桌面构建和 CPU / Vulkan / CUDA 组装。三个后端均成功后，将同次构建的 ZIP、SHA256 与 JSON 清单自动上传到固定的 [Beta 下载页](https://github.com/XDawned/MCPackLocalizer/releases/tag/Beta)，无需手动下载和重新上传。
+
+Beta 标记为预发布版，供用户验证最新开发代码；包内版本仍以 `pyproject.toml` 为准。发布脚本先校验九个文件的版本、提交、Run ID、Attempt 与 SHA256，再把新包上传到临时草稿，上传成功后才替换旧 Beta。构建或上传失败保留旧 Beta；已被新提交取代的构建会跳过发布。三个后端必须全部重跑，避免不同批次混用。
+
+固定 `Beta` 标签随成功构建移动，页面只保留最新测试包；历史产物可在各自 Actions 运行中下载，保存 30 天。`desktop-common` 仅为构建中间产物，不上传 Release。版本号标签和现有正式发布保持独立；无需额外 PAT，工作流仅为 Beta 发布任务授予仓库写权限。
+
+### 正式版本发布
+
 1. 把源码、`uv.lock`、`docs/`、`packaging/`、`scripts/` 和 `.github/workflows/` 推送到默认分支，并启用仓库的 Actions。本地未提交的改动不会进入云端构建。
-2. 在 Actions 页选择“构建 Windows 测试包”，点“Run workflow”，选默认分支启动，不用填参数。`main` / `master` 分支推送相关文件时也会自动构建。
+2. 在 Actions 页选择“构建 Windows 测试包”，点“Run workflow”，选默认分支启动，不用填参数。`main` / `master`、`v2.0.0` 和 `v*-rc.*` 分支推送相关文件时也会自动构建；仅 `v2.0.0` 更新 Beta。
 3. 从同一次成功运行中下载 `release-cpu`、`release-vulkan`、`release-cuda`。解压 artifact 后里面还有一层软件 ZIP，需要再解压；`desktop-common` 是中间产物，不用管。
 4. 在对应硬件上完成下方人工测试，记录 Run URL / ID、系统、硬件、驱动、模型和结果。
 5. 在默认分支运行“发布已验证的版本”，填写 `source_run_id`、与包版本匹配的 `tag`、`test_notes`，勾选 `tested`，需要预览版再勾 `prerelease`。
@@ -50,7 +60,7 @@ Python、后端 wheel、CUDA 运行库的版本、下载地址和 SHA256 都固�
 
 ## 自动检查与人工测试
 
-构建会执行 Ruff、全量 pytest、运行时与 DLL 校验，以及冻结 EXE 的 offscreen 后台扫描。`scripts/release_tests.py` 只把 AGENTS.md 记录的三个重构基线失败标为 xfail，其它失败一律中断构建。托管 runner 没有测试 GPU 和 GGUF 模型，CI 通过后仍要到实机试译。
+构建会执行 Ruff、全量 pytest、运行时与 DLL 校验，以及冻结 EXE 的 offscreen 后台扫描。`scripts/release_tests.py` 只把 AGENTS.md 记录的已知基线失败标为 xfail，其它失败一律中断构建。托管 runner 没有测试 GPU 和 GGUF 模型，CI 通过后仍要到实机试译。
 
 每个后端至少完成以下测试，优先用没有开发 Python 环境的机器：
 

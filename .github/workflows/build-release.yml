@@ -1,9 +1,10 @@
 name: 构建 Windows 测试包
+run-name: 构建 ${{ github.ref_name }} Windows 测试包
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, master, 'v2.0.0', 'v*-rc.*']
     paths:
       - 'src/**'
       - 'resources/**'
@@ -18,6 +19,10 @@ on:
 
 permissions:
   contents: read
+
+env:
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: utf-8
 
 concurrency:
   group: windows-build-${{ github.ref }}
@@ -39,7 +44,7 @@ jobs:
           version: '0.7.2'
           enable-cache: true
       - run: uv sync --frozen --python 3.12 --group release
-      - name: 全量测试（显式标记 AGENTS.md 中的三个基线失败）
+      - name: 全量测试（显式标记 AGENTS.md 中的已知基线失败）
         run: uv run --no-sync python scripts/release_tests.py
       - name: 代码检查
         run: uv run --no-sync ruff check src tests scripts main.py
@@ -92,3 +97,32 @@ jobs:
           "### $env:BACKEND 测试包" >> $env:GITHUB_STEP_SUMMARY
           "下载本次构建的 release-$env:BACKEND artifact，解压 artifact 后再解压软件 ZIP。" >> $env:GITHUB_STEP_SUMMARY
           "全部后端人工测试通过后，运行『发布已验证的版本』，填写本次 Run ID：$env:GITHUB_RUN_ID。" >> $env:GITHUB_STEP_SUMMARY
+
+  beta:
+    name: 更新 Beta 测试版下载
+    needs: [desktop, packages]
+    if: github.ref == 'refs/heads/v2.0.0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    concurrency:
+      group: beta-release
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: artifacts
+      - name: 校验本次产物并更新 Beta 预发布版
+        run: python scripts/publish_beta.py --directory artifacts

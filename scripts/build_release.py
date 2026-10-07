@@ -231,7 +231,8 @@ def assemble(backend: str):
     desktop_licenses(directory / "licenses")
     run(sys.executable, str(ROOT / "scripts/export_docs.py"), "--output", str(directory / "使用说明.html"))
     # wheel 的 dist-info/licenses 和 Python 自带许可证随运行时保留。
-    run(str(runtime / "python.exe"), str(ROOT / "scripts/smoke_release.py"), str(directory), backend)
+    # 内置解释器的 _pth 隔离模式忽略环境变量，显式启用 UTF-8 以输出中文检查日志。
+    run(str(runtime / "python.exe"), "-X", "utf8", str(ROOT / "scripts/smoke_release.py"), str(directory), backend)
     OUTPUT.mkdir(parents=True, exist_ok=True)
     zip_path = Path(shutil.make_archive(str(OUTPUT / name), "zip", directory.parent, directory.name))
     (OUTPUT / f"{name}.sha256").write_text(f"{sha256(zip_path)}  {zip_path.name}\n", encoding="ascii")
