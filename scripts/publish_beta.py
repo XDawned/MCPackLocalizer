@@ -9,6 +9,7 @@ import sys
 import tempfile
 import urllib.error
 from pathlib import Path
+from urllib.parse import quote
 
 if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -26,6 +27,77 @@ def release_for(tag: str):
         return None
 
 
+def commit_history(ref: str):
+    page = 1
+    while True:
+        commits = api(f"commits?sha={quote(ref, safe='')}&per_page=100&page={page}")
+        yield from commits
+        if len(commits) < 100:
+            return
+        page += 1
+
+
+def beta_notes(commit: str) -> str:
+    """使用 GitHub 生成 PR 记录，并补充仅直接提交的版本与首次贡献者。"""
+    repo = os.environ["GITHUB_REPOSITORY"]
+    base_url = f"{os.getenv('GITHUB_SERVER_URL', 'https://github.com')}/{repo}"
+    try:
+        previous = api("releases/latest")["tag_name"]
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+        previous = None
+    # 用构建提交作为目标，避免尚未移动的 Beta 标签让生成结果落后一个构建。
+    payload = {"tag_name": commit, "target_commitish": commit}
+    if previous:
+        payload["previous_tag_name"] = previous
+    body = api("releases/generate-notes", payload)["body"].strip()
+    if previous:
+        comparison = f"compare/{quote(previous, safe='')}...{commit}"
+        first = api(f"{comparison}?per_page=100&page=1")
+        commits = first["commits"]
+        for page in range(2, (first["total_commits"] + 99) // 100 + 1):
+            commits.extend(api(f"{comparison}?per_page=100&page={page}")["commits"])
+    else:
+        commits = list(reversed(list(commit_history(commit))))
+    if "## What's Changed" not in body:
+        changes = []
+        for item in commits:
+            title = item["commit"]["message"].splitlines()[0]
+            login = (item.get("author") or {}).get("login")
+            author = f" by @{login}" if login else ""
+            changes.append(f"* {title}{author} in [{item['sha'][:7]}]({base_url}/commit/{item['sha']})")
+        body = "## What's Changed\n" + ("\n".join(changes) or "* 本次没有新增提交。") + "\n\n" + body
+    if "## New Contributors" not in body:
+        authors = {}
+        for item in commits:
+            login = (item.get("author") or {}).get("login")
+            if login:
+                authors.setdefault(login, item["sha"])
+        new = set(authors)
+        if previous:
+            for item in commit_history(previous):
+                new.discard((item.get("author") or {}).get("login"))
+                if not new:
+                    break
+        contributors = [f"* @{login} made their first contribution in {base_url}/commit/{sha}"
+                        for login, sha in authors.items() if login in new]
+        section = "## New Contributors\n" + ("\n".join(contributors) or "* 本次暂无新贡献者。") + "\n\n"
+        marker = "**Full Changelog**:"
+        if marker in body:
+            body = body.replace(marker, section + marker, 1)
+        else:
+            body += "\n\n" + section
+    # 固定页面使用 Beta 比较链接，临时草稿标签不出现在公开说明中。
+    if previous:
+        body = body.replace(f"{base_url}/compare/{previous}...{commit}",
+                            f"{base_url}/compare/{previous}...Beta")
+    if "**Full Changelog**:" not in body:
+        target = f"compare/{quote(previous, safe='')}...Beta" if previous else "commits/Beta"
+        body += f"\n\n**Full Changelog**: {base_url}/{target}"
+    return "MCPackLocalizer Beta 开发测试版本，由最新源码自动打包。\n\n" + body.strip() + "\n"
+
+
 def publish_beta(directory: Path):
     repo = os.environ["GITHUB_REPOSITORY"]
     commit = os.environ["GITHUB_SHA"]
@@ -38,7 +110,7 @@ def publish_beta(directory: Path):
     run_url = f"{os.getenv('GITHUB_SERVER_URL', 'https://github.com')}/{repo}/actions/runs/{run_id}"
     run = {"head_sha": commit, "id": run_id, "run_attempt": attempt, "html_url": run_url}
     version = project_version()
-    assets, manifests = validate_assets(directory, run, f"v{version}")
+    assets, _ = validate_assets(directory, run, f"v{version}")
     if api("git/ref/heads/v2.0.0")["object"]["sha"] != commit:
         print("分支已有较新提交，跳过旧构建的 Beta 发布", flush=True)
         return
@@ -55,13 +127,7 @@ def publish_beta(directory: Path):
     staged_commit = tag_commit(staging)
     if staged_commit is not None and staged_commit != commit:
         raise ValueError("临时构建标签指向其它提交，拒绝覆盖")
-    body = ("开发测试版，构建自 `v2.0.0` 分支，通过自动检查后发布，尚待测试用户验证。\n\n"
-            f"包版本：`{version}`；构建提交：`{commit}`。\n\n"
-            f"[构建记录]({run_url})（Attempt {attempt}）。\n\n"
-            "按硬件下载对应 ZIP，完整解压后运行 `MCPackLocalizer.exe`；GGUF 模型需单独准备。\n\n" +
-            "\n".join(f"- **{m['backend']}**：{m['requirements']}" for m in manifests) +
-            "\n\nSHA256 文件用于校验下载完整性，JSON 清单用于确认版本与构建来源。\n\n"
-            "Beta 页面会随成功构建更新；正式版本需人工确认后单独发布。")
+    body = beta_notes(commit)
     with tempfile.TemporaryDirectory() as temporary:
         notes = Path(temporary) / "beta.md"
         notes.write_text(body, encoding="utf-8")

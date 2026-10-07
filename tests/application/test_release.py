@@ -7,7 +7,7 @@ import zipfile
 import pytest
 
 from scripts.build_release import native_runtime
-from scripts.publish_beta import publish_beta
+from scripts.publish_beta import beta_notes, publish_beta
 from scripts.publish_release import checked_run, digest, publish, validate_assets
 
 
@@ -139,6 +139,7 @@ def beta_environment(release_assets, monkeypatch, mocker):
                        "GITHUB_REF": "refs/heads/v2.0.0"}.items():
         monkeypatch.setenv(key, value)
     mocker.patch("scripts.publish_beta.project_version", return_value="2.0.0")
+    mocker.patch("scripts.publish_beta.beta_notes", return_value="## What's Changed\n* 测试变更\n")
     api = mocker.patch("scripts.publish_beta.api", return_value={"object": {"sha": run["head_sha"]}})
     releases = mocker.patch("scripts.publish_beta.release_for", return_value=None)
     tags = mocker.patch("scripts.publish_beta.tag_commit", return_value=None)
@@ -223,3 +224,62 @@ def test_beta_requires_development_branch(beta_environment, monkeypatch):
         publish_beta(directory)
     api.assert_not_called()
     commands.assert_not_called()
+
+
+def test_beta_notes_include_direct_commits_and_real_first_contributors(monkeypatch, mocker):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    commit = "a" * 40
+    changes = [
+        {"sha": "b" * 40, "author": {"login": "existing"}, "commit": {"message": "修复模型加载\n详细说明"}},
+        {"sha": commit, "author": {"login": "newcomer"}, "commit": {"message": "增加接口模板"}},
+    ]
+    generated = f"**Full Changelog**: https://github.com/owner/repo/compare/v1.1.0...{commit}"
+    requests = mocker.patch("scripts.publish_beta.api", side_effect=[
+        {"tag_name": "v1.1.0"}, {"body": generated}, {"total_commits": 2, "commits": changes},
+        [{"author": {"login": "existing"}}],
+    ])
+    body = beta_notes(commit)
+    assert "## What's Changed" in body and "修复模型加载 by @existing" in body
+    assert "详细说明" not in body
+    assert "## New Contributors" in body and "@newcomer made their first contribution" in body
+    assert "@existing made their first contribution" not in body
+    assert body.endswith("**Full Changelog**: https://github.com/owner/repo/compare/v1.1.0...Beta\n")
+    assert requests.call_args_list[1].args == ("releases/generate-notes", {
+        "tag_name": commit, "target_commitish": commit, "previous_tag_name": "v1.1.0",
+    })
+
+
+def test_beta_notes_preserve_generated_pull_request_sections(monkeypatch, mocker):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    generated = ("## What's Changed\n* 修复 by @alice in https://github.com/owner/repo/pull/1\n\n"
+                 "## New Contributors\n* @alice made their first contribution\n\n"
+                 "**Full Changelog**: https://github.com/owner/repo/compare/v1.1.0..." + "a" * 40)
+    mocker.patch("scripts.publish_beta.api", side_effect=[
+        {"tag_name": "v1.1.0"}, {"body": generated}, {"total_commits": 0, "commits": []},
+    ])
+    body = beta_notes("a" * 40)
+    assert body.count("## What's Changed") == body.count("## New Contributors") == 1
+    assert "pull/1" in body and body.endswith("v1.1.0...Beta\n")
+
+
+def test_beta_notes_scan_previous_commit_pages_before_claiming_new_contributors(monkeypatch, mocker):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    changes = [{"sha": "a" * 40, "author": {"login": "alice"}, "commit": {"message": "更新"}}]
+    mocker.patch("scripts.publish_beta.api", side_effect=[
+        {"tag_name": "v1.1.0"}, {"body": ""}, {"total_commits": 1, "commits": changes},
+        [{"author": {"login": "bob"}}] * 100, [{"author": {"login": "alice"}}],
+    ])
+    body = beta_notes("a" * 40)
+    assert "本次暂无新贡献者" in body and "made their first contribution" not in body
+
+
+def test_beta_notes_support_first_release_without_previous_tag(monkeypatch, mocker):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    requests = mocker.patch("scripts.publish_beta.api", side_effect=[
+        urllib.error.HTTPError("url", 404, "missing", {}, None), {"body": ""},
+        [{"sha": "a" * 40, "author": {"login": "alice"}, "commit": {"message": "首次提交"}}],
+    ])
+    body = beta_notes("a" * 40)
+    assert "@alice made their first contribution" in body
+    assert "commits/Beta" in body
+    assert "previous_tag_name" not in requests.call_args_list[1].args[1]

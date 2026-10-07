@@ -12,6 +12,8 @@ Beta 标记为预发布版，供用户验证最新开发代码；包内版本仍
 
 固定 `Beta` 标签随成功构建移动，页面只保留最新测试包；历史产物可在各自 Actions 运行中下载，保存 30 天。`desktop-common` 仅为构建中间产物，不上传 Release。版本号标签和现有正式发布保持独立；无需额外 PAT，工作流仅为 Beta 发布任务授予仓库写权限。
 
+Beta 说明以最近的正式 Release 为比较起点，由 GitHub 自动生成 PR 变更；没有 PR 记录时补充直接提交。页面包含 `What's Changed`、`New Contributors` 与 `Full Changelog`，首次贡献者会根据旧版提交历史核对；无新贡献者时注明。比较链接始终指向 `Beta`，不会暴露临时草稿标签。
+
 ### 正式版本发布
 
 1. 把源码、`uv.lock`、`docs/`、`packaging/`、`scripts/` 和 `.github/workflows/` 推送到默认分支，并启用仓库的 Actions。本地未提交的改动不会进入云端构建。
