@@ -335,7 +335,7 @@ def scan_pack(root: Path, source_locale="en_us", target_locale="zh_cn", pack_id=
     if loader:
         scan.metadata["loader"] = loader
     ftb_root = root / "config" / "ftbquests"
-    # 1.12 uses ftbquests/<packmode>/chapters/<chapter>/<quest>.{snbt,nbt}.
+    # 旧版任务既可能按章节拆分，也可能整本保存在 questpacks/<packmode>.nbt。
     quest_roots = [ftb_root, ftb_root / "quests"]
     for mode in sorted(ftb_root.glob("*")):
         if (mode.is_dir() and mode.name.casefold() not in {"quests", "chapters", "reward_tables", "lang",
@@ -367,6 +367,10 @@ def scan_pack(root: Path, source_locale="en_us", target_locale="zh_cn", pack_id=
             else:
                 target, kind = path, "ftb-nbt" if path.suffix.lower() == ".nbt" else "ftb-inline"
             candidates.append((path, target.relative_to(root).as_posix(), kind))
+    # 只读取顶层任务包，避免将备份子目录中的旧任务重复纳入翻译。
+    for path in sorted((root / "questpacks").glob("*")):
+        if path.is_file() and path.suffix.lower() == ".nbt":
+            candidates.append((path, path.relative_to(root).as_posix(), "ftb-nbt"))
     # Only the default database is distributable; do not translate player progress or backups.
     bq_root = root / "config" / "betterquesting"
     for path in sorted(bq_root.glob("*")):
