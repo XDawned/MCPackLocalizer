@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 from mcpacklocalizer.application.config.settings import Settings
+from mcpacklocalizer.core.mods.scan import validate_cfpa_snapshot
 from mcpacklocalizer.paths import INSTALL_HOME, MODEL_HOME, RESOURCES
 from mcpacklocalizer.runtime import inference_python, task_python
 
@@ -22,6 +23,12 @@ def check(directory: Path, backend: str):
     assert (RESOURCES / "glossary/glossary_en_zh.json").is_file(), "术语资源缺失"
     assert (RESOURCES / "glossary/common_words_en.txt").is_file(), "排除词表缺失"
     assert (RESOURCES / "icon.ico").is_file(), "图标缺失"
+    # 运行时 wheel 与桌面 EXE 均须携带完整离线快照。
+    validate_cfpa_snapshot(RESOURCES / "cfpa")
+    desktop_resources = directory / "_internal/mcpacklocalizer/resources/cfpa"
+    validate_cfpa_snapshot(desktop_resources)
+    assert (RESOURCES / "cfpa/manifest.json").read_bytes() == (desktop_resources / "manifest.json").read_bytes(), \
+        "桌面与任务解释器的离线资源批次不一致"
     assert Settings.defaults().runtime_python == "", "自动运行时不应保存绝对路径"
     assert Path(task_python()) == Path(sys.executable), "任务解释器不是内置解释器"
     assert Path(inference_python()) == Path(sys.executable), "推理解释器不是内置解释器"

@@ -28,6 +28,10 @@ Beta 说明以最近的正式 Release 为比较起点，由 GitHub 自动生成 
 
 ## 本地构建
 
+`resources/cfpa/` 的 ZIP、MD5 与 `manifest.json` 不入库。`scripts/build_release.py desktop` 在公共构建阶段自动从 GitHub 获取完整离线快照，校验成功后将同一份内容装入桌面 EXE 与运行时 wheel，再供三个后端组装复用；下载或校验失败会终止构建。发布包冒烟检查会核对两份资源的完整性和批次，用户运行时线上访问超时仍可离线回退。
+
+源码开发若需要完整的离线回退，或单独使用 `uv build --wheel`，先运行 `uv run python scripts/update_cfpa_resources.py`。生成内容位于 `resources/cfpa/releases/`，无需提交；小体积元数据、索引、说明与许可证保留在仓库。来源与许可文件见该目录的 `README.md`。
+
 Windows x64、Python 3.12 环境下，在仓库根目录执行：
 
 ```powershell

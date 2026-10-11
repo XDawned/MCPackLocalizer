@@ -24,6 +24,7 @@ packages = ["src/mcpacklocalizer"]
 "resources/pack.png" = "mcpacklocalizer/resources/pack.png"
 "resources/glossary/common_words_en.txt" = "mcpacklocalizer/resources/glossary/common_words_en.txt"
 "resources/glossary/glossary_en_zh.json" = "mcpacklocalizer/resources/glossary/glossary_en_zh.json"
+"resources/cfpa" = "mcpacklocalizer/resources/cfpa"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

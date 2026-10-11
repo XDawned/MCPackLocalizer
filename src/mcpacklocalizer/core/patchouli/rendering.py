@@ -105,7 +105,7 @@ def rewrite_archive(raw, replacements):
 
 def pack_metadata(scan):
     from ..mods.scan import select_game
-    data = json.loads(Path(__file__).parents[1].joinpath("mods/data/i18n_metadata.json").read_bytes())
+    data = json.loads((RESOURCES / "cfpa" / "i18nMetaData.json").read_bytes())
     try:
         game = select_game(data, scan.metadata.get("minecraft_version", "unknown"))
     except ValueError as exc:

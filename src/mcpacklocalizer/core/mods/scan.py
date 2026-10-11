@@ -1,9 +1,10 @@
-"""Read-only mod language coverage, CFPA acquisition, and portable reports."""
+# [Module: mcpacklocalizer.core.mods.scan] [Status: 已完成] [Brief: 模组语言覆盖扫描、社区资源在线获取与离线回退]
 from __future__ import annotations
 
 import csv
 import hashlib
 import html
+import http.client
 import io
 import json
 import os
@@ -19,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ...paths import RESOURCES
 from ..pack.snapshots import atomic_write
 
 
@@ -48,6 +50,8 @@ RELEASE_ROOT = "https://github.com/CFPAOrg/Minecraft-Mod-Language-Package/releas
 LANG_PATH = re.compile(r"^assets/([a-z0-9_.-]+)/lang/(en_us|zh_cn)\.(json|lang|json5)$", re.IGNORECASE)
 MAX_ENTRY = 32 * 1024 * 1024
 MAX_DOWNLOAD = 256 * 1024 * 1024
+CFPA_RESOURCES = RESOURCES / "cfpa"
+NETWORK_ERRORS = (OSError, urllib.error.URLError, http.client.HTTPException)
 
 
 def progress(message):
@@ -60,7 +64,7 @@ def json_bytes(value):
 
 def fetch(url, limit=MAX_DOWNLOAD):
     request = urllib.request.Request(url, headers={"User-Agent": "MCPackLocalizer/0.1"})
-    with urllib.request.urlopen(request, timeout=45) as response:
+    with urllib.request.urlopen(request, timeout=15) as response:
         data = response.read(limit + 1)
     if len(data) > limit:
         raise ValueError(f"下载内容过大：{url}")
@@ -68,16 +72,34 @@ def fetch(url, limit=MAX_DOWNLOAD):
 
 
 def cached_json(url, path, offline):
+    error = None
     if not offline:
         progress(f"获取元数据: {url}")
-        data = fetch(url, 2 * 1024 * 1024)
-        value = json.loads(data)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write(path, data)
+        try:
+            data = fetch(url, 2 * 1024 * 1024)
+        except NETWORK_ERRORS as exc:
+            error = exc
+            progress("线上元数据访问失败，尝试离线副本")
+        else:
+            value = json.loads(data)
+            if not isinstance(value, dict):
+                raise ValueError(f"元数据必须是一个对象：{url}")  # noqa: TRY004 - 元数据格式错误属于校验失败。
+            atomic_write(path, data)
+            return value
+    bundled = {META_URL: "i18nMetaData.json", INDEX_URL: "version-index.json"}.get(url)
+    candidates = [path] + ([CFPA_RESOURCES / bundled] if bundled else [])
+    for candidate in candidates:
+        try:
+            if not candidate.is_file():
+                continue
+            value = json.loads(candidate.read_bytes())
+            if not isinstance(value, dict):
+                continue
+        except (OSError, ValueError):
+            continue
+        progress(f"使用离线元数据：{candidate}")
         return value
-    if not path.is_file():
-        raise ValueError(f"离线元数据缓存缺失：{path}")
-    return json.loads(path.read_bytes())
+    raise ValueError(f"离线元数据缺失或无效：{path}") from error
 
 
 def version_tuple(value):
@@ -117,8 +139,6 @@ def load_metadata(args):
             metadata = json.loads(archive.read("i18nMetaData.json"))
     elif args.metadata:
         metadata = json.loads(args.metadata.read_bytes())
-    elif (args.offline or args.cfpa_pack) and not (cache / "i18nMetaData.json").is_file():
-        metadata = json.loads(Path(__file__).with_name("data").joinpath("i18n_metadata.json").read_bytes())
     else:
         metadata = cached_json(META_URL, cache / "i18nMetaData.json", args.offline or bool(args.cfpa_pack))
     args.pack_metadata = select_game(metadata, args.game_version)
@@ -133,6 +153,89 @@ def file_digest(path):
     return hasher.hexdigest()
 
 
+def release_folder(root, tag):
+    return root / "releases" / hashlib.sha256(tag.encode()).hexdigest()[:16]
+
+
+def validate_cfpa(data, expected, filename):
+    if len(data) > MAX_DOWNLOAD:
+        raise ValueError(f"资源包超出大小限制：{filename}")
+    if hashlib.md5(data).hexdigest().lower() != expected.lower():
+        raise ValueError(f"CFPA 校验和不匹配：{filename}；请重新运行以重试")
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        if archive.testzip():
+            raise ValueError(f"ZIP 文件无效：{filename}")
+
+
+def cfpa_snapshot_assets(metadata, index):
+    """列出全部版本与加载器离线回退需要的发布资源。"""
+    pairs = {}
+    for asset in metadata["assets"]:
+        key = asset["targetVersion"] + ("-fabric" if asset["loader"].lower() == "fabric" else "")
+        for tag in {"autobuild", index.get(key) or "autobuild"}:
+            pairs[tag, asset["filename"]] = asset
+    # 某版本选中的发布可能还需要较旧版本的转换资源。
+    for game in metadata["games"]:
+        version = game["gameVersions"][1:-1].split(",")[0]
+        for loader in ("forge", "fabric"):
+            selected = select_assets(metadata, version, loader)
+            key = selected[0]["targetVersion"] + ("-fabric" if loader == "fabric" else "")
+            tag = index.get(key) or "autobuild"
+            for asset in selected:
+                pairs[tag, asset["filename"]] = asset
+    return [(tag, asset) for (tag, _filename), asset in sorted(pairs.items())]
+
+
+def validate_cfpa_snapshot(root):
+    """发布前确认离线快照的清单、映射和全部资源完整。"""
+    manifest = json.loads((root / "manifest.json").read_bytes())
+    records = manifest["files"]
+    for name, record in records.items():
+        relative = Path(name)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("离线快照清单包含无效路径")
+        data = (root / relative).read_bytes()
+        if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
+            raise ValueError(f"离线快照文件校验失败：{name}")
+    for name in ("i18nMetaData.json", "version-index.json"):
+        if name not in records:
+            raise ValueError(f"离线快照清单缺少文件：{name}")
+    metadata = json.loads((root / "i18nMetaData.json").read_bytes())
+    index = json.loads((root / "version-index.json").read_bytes())
+    for tag, asset in cfpa_snapshot_assets(metadata, index):
+        folder = release_folder(root, tag)
+        for name in (asset["filename"], asset["md5Filename"]):
+            relative = (folder / name).relative_to(root).as_posix()
+            if Path(name).name != name or relative not in records:
+                raise ValueError(f"离线快照清单缺少资源：{name}（{tag}）")
+        validate_cfpa((folder / asset["filename"]).read_bytes(),
+                      (folder / asset["md5Filename"]).read_text(encoding="ascii").strip(), asset["filename"])
+
+
+def local_cfpa(cache, tag, asset):
+    # 资源包与 MD5 始终从同一目录读取，允许回退到完整的旧快照。
+    candidates = [(cache, tag, "cache"), (CFPA_RESOURCES, tag, "bundled")]
+    if tag != "autobuild":
+        candidates.append((CFPA_RESOURCES, "autobuild", "bundled"))
+    for root, local_tag, acquisition in candidates:
+        folder = release_folder(root, local_tag)
+        path = folder / asset["filename"]
+        md5_path = folder / asset["md5Filename"]
+        try:
+            if not path.is_file() or not md5_path.is_file():
+                continue
+            expected = md5_path.read_text(encoding="ascii").strip()
+            if not re.fullmatch(r"[0-9a-fA-F]{32}", expected):
+                continue
+            data = path.read_bytes()
+            validate_cfpa(data, expected, asset["filename"])
+        except (OSError, ValueError, zipfile.BadZipFile):
+            continue
+        progress(f"使用离线 CFPA 资源包：{path}")
+        return path, data, expected, local_tag, acquisition
+    raise ValueError(f"离线资源包缺失或校验和不匹配：{asset['filename']}（{tag}）")
+
+
 def get_cfpa(args):
     metadata = load_metadata(args)
     if args.cfpa_pack:
@@ -141,53 +244,62 @@ def get_cfpa(args):
     cache = args.cache.resolve()
     selected = select_assets(metadata, args.game_version, args.loader)
     index = cached_json(INDEX_URL, cache / "version-index.json", args.offline) if args.release == "indexed" else {}
-    # Follow I18nConfig: resolve a single release tag using the first resource version.
+    # 按 I18nConfig 的规则，由首个资源版本确定发布标签。
     first = selected[0]
     index_key = first["targetVersion"] + ("-fabric" if args.loader in {"fabric", "quilt"} else "")
     tag = index.get(index_key) if args.release == "indexed" else "autobuild"
     selection_note = ""
     if not tag:
         tag = "autobuild"
-        selection_note = f"Index lacks {index_key}; used official rolling autobuild release"
+        selection_note = f"索引缺少 {index_key}，使用官方 autobuild 发布包"
         progress(f"索引缺少 {index_key}，改用官方 autobuild 发布包（报告记录此回退）")
     packs = []
+    network_error = None
     for asset in selected:
         filename = asset["filename"]
         if Path(filename).name != filename or Path(asset["md5Filename"]).name != asset["md5Filename"]:
             raise ValueError("元数据中的资源文件名无效")
-        folder = cache / "releases" / hashlib.sha256(tag.encode()).hexdigest()[:16]
+        folder = release_folder(cache, tag)
         path = folder / filename
         md5_path = folder / asset["md5Filename"]
         base = RELEASE_ROOT + urllib.parse.quote(tag, safe="") + "/"
-        if not args.offline:
+        actual_tag, acquisition, note = tag, "online", selection_note
+        use_local = args.offline or network_error is not None
+        if not use_local:
             progress(f"检查 CFPA {asset['targetVersion']} ({asset['loader']}): {tag}")
-            md5_data = fetch(base + urllib.parse.quote(asset["md5Filename"]), 1024)
-            expected = md5_data.decode("ascii").strip()
-        else:
-            if not md5_path.is_file():
-                raise ValueError(f"离线校验和缓存缺失：{md5_path}")
-            expected = md5_path.read_text(encoding="ascii").strip()
-            md5_data = expected.encode("ascii")
-        if not re.fullmatch(r"[0-9a-fA-F]{32}", expected):
-            raise ValueError(f"MD5 元数据无效：{filename}")
-        data = path.read_bytes() if path.is_file() else None
-        if data is None or hashlib.md5(data).hexdigest().lower() != expected.lower():
-            if args.offline:
-                raise ValueError(f"离线资源包缺失或校验和不匹配：{path}")
-            progress(f"下载 {filename}")
-            data = fetch(base + urllib.parse.quote(filename))
-            if hashlib.md5(data).hexdigest().lower() != expected.lower():
-                raise ValueError(f"CFPA 校验和不匹配：{filename}；请重新运行以重试")
-            with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                if archive.testzip():
-                    raise ValueError(f"ZIP 文件无效：{filename}")
-            folder.mkdir(parents=True, exist_ok=True)
-            atomic_write(path, data)
-        md5_path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write(md5_path, md5_data)
+            try:
+                md5_data = fetch(base + urllib.parse.quote(asset["md5Filename"]), 1024)
+                expected = md5_data.decode("ascii").strip()
+                if not re.fullmatch(r"[0-9a-fA-F]{32}", expected):
+                    raise ValueError(f"MD5 元数据无效：{filename}")
+                data = path.read_bytes() if path.is_file() else None
+                if data is None or hashlib.md5(data).hexdigest().lower() != expected.lower():
+                    progress(f"下载 {filename}")
+                    data = fetch(base + urllib.parse.quote(filename))
+                else:
+                    acquisition = "cache"
+                validate_cfpa(data, expected, filename)
+            except NETWORK_ERRORS as exc:
+                network_error = exc
+                use_local = True
+                progress("线上 CFPA 访问失败，后续资源使用离线副本")
+            else:
+                if acquisition == "online":
+                    atomic_write(path, data)
+                atomic_write(md5_path, md5_data)
+        if use_local:
+            try:
+                path, data, expected, actual_tag, acquisition = local_cfpa(cache, tag, asset)
+            except ValueError as exc:
+                raise exc from network_error
+            if network_error is not None:
+                note = (note + "；" if note else "") + "线上访问失败，使用已校验的离线副本"
+            if actual_tag != tag:
+                note = (note + "；" if note else "") + f"离线副本缺少 {tag}，回退到内置 {actual_tag}"
+        actual_base = RELEASE_ROOT + urllib.parse.quote(actual_tag, safe="") + "/"
         packs.append((path, {"kind": "downloaded_cfpa", "target_version": asset["targetVersion"],
-                            "loader_variant": asset["loader"], "release": tag, "url": base + filename,
-                            "requested_release": args.release, "selection_note": selection_note,
+                            "loader_variant": asset["loader"], "release": actual_tag, "url": actual_base + filename,
+                            "requested_release": args.release, "selection_note": note, "acquisition": acquisition,
                             "md5": expected, "sha256": hashlib.sha256(data).hexdigest(), "path": str(path)}))
     return packs
 

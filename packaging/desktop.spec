@@ -6,7 +6,6 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 root = Path(SPECPATH).parent
 datas = collect_data_files("qfluentwidgets") + collect_data_files("qframelesswindow")
 datas += [(str(root / "resources"), "mcpacklocalizer/resources")]
-datas += collect_data_files("mcpacklocalizer", includes=["core/mods/data/*.json"])
 a = Analysis(
     [str(root / "main.py")],
     pathex=[str(root / "src")],

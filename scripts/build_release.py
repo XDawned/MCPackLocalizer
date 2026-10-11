@@ -173,6 +173,9 @@ def runtime_requirements(destination: Path):
 
 def desktop():
     BUILD.mkdir(parents=True, exist_ok=True)
+    # 在公共构建阶段获取一次离线快照，EXE 与 wheel 使用相同内容。
+    # 获取或校验失败会终止构建，避免发布缺少离线资源的软件。
+    run(sys.executable, str(ROOT / "scripts/update_cfpa_resources.py"))
     run("uv", "build", "--wheel", "--out-dir", str(BUILD / "wheel"))
     env = os.environ.copy()
     windows = Path(os.environ["SystemRoot"])

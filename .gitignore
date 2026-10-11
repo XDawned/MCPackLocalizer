@@ -26,6 +26,9 @@ __pycache__/
 /build/
 /dist/
 /docs/使用说明.html
+# 打包时下载的 CFPA 离线资源，仍须装入发布包
+/resources/cfpa/releases/
+/resources/cfpa/manifest.json
 
 # 本地开发工具与规划记录
 /.idea/
