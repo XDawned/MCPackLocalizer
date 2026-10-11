@@ -12,6 +12,7 @@ from mcpacklocalizer.core.mods.scan import ResourceOptions, detect
 from mcpacklocalizer.core.mods.tasks import build_mod_patch, create_mod_scan, validate_mod_sources
 from mcpacklocalizer.core.pack.extraction import Scan
 from mcpacklocalizer.core.pack.snapshots import load_snapshot
+from mcpacklocalizer.paths import RESOURCES
 from tests.core.mods.test_mod_scan import mod_fixture, write_zip
 
 
@@ -24,10 +25,14 @@ def flags(tmp_path, sources, game='1.20.1'):
     return {'game_version': game, 'loader': 'forge', 'offline': True, 'cache': tmp_path / 'cache', 'cfpa_pack': [sources[0][0]], 'translation_library': tmp_path / 'shared.sqlite3'}
 
 
-def test_manual_exclusions_apply_to_standalone_and_combined_mod_patches(tmp_path):
+@pytest.mark.parametrize("pack_metadata, expected_format", [
+    ({"packFormat": 15}, {"pack_format": 15}),
+    ({"minFormat": [65, 0], "maxFormat": [65, 0]}, {"min_format": [65, 0], "max_format": [65, 0]}),
+])
+def test_manual_exclusions_apply_to_standalone_and_combined_mod_patches(tmp_path, pack_metadata, expected_format):
     root, sources = mod_fixture(tmp_path, english={"iron": "Iron"})
     options = ResourceOptions("1.20.1", "forge", tmp_path / "cache", True, [sources[0][0]])
-    options.pack_metadata = {"packFormat": 15}
+    options.pack_metadata = pack_metadata
     scan = create_mod_scan(detect(root, sources), options, tmp_path / "library.sqlite3")
     assert scan.entries
     for entry in scan.entries:
@@ -37,12 +42,18 @@ def test_manual_exclusions_apply_to_standalone_and_combined_mod_patches(tmp_path
     patch = output / "patch" / manifest["files"][0]["path"]
     with zipfile.ZipFile(patch) as archive:
         assert any(name.endswith("/zh_cn.json") for name in archive.namelist())
+        assert archive.read("pack.png") == (RESOURCES / "pack.png").read_bytes()
+        pack = json.loads(archive.read("pack.mcmeta"))["pack"]
+        description = pack.pop("description")
+        assert "MCPackLocalizer" in description and "简体中文" in description
+        assert "\n" in description and "CFPA 与整合包资源包上方" in description
+        assert pack == expected_format
     excluded = [d.path for d in scan.documents]
     scan.metadata["manual_excluded_resources"] = excluded
     manifest = build_mod_patch(scan, output)
     assert manifest["pending_entries"] == 0 and manifest["excluded_resources"]
     with zipfile.ZipFile(patch) as archive:
-        assert archive.namelist() == ["pack.mcmeta"]
+        assert archive.namelist() == ["pack.mcmeta", "pack.png"]
     combined = Scan(str(root), scan.pack_id, "en_us", "zh_cn", scan.documents, scan.entries,
                     metadata={"mod_resources": scan.metadata, "manual_excluded_resources": excluded})
     assert mod_scan(combined).metadata["manual_excluded_resources"] == excluded
@@ -64,7 +75,7 @@ def test_review_then_cross_pack_cross_version_extract_and_sparse_zip_export(tmp_
     with zipfile.ZipFile(second / 'patch/resourcepacks/MCPackLocalizer-Mod-Translations.zip') as archive:
         assert json.loads(archive.read('assets/example/lang/zh_cn.json')) == {'iron': '铁 %s'}
         assert json.loads(archive.read('pack.mcmeta'))['pack']['pack_format'] == 34
-        assert len(archive.namelist()) == 2
+        assert set(archive.namelist()) == {'pack.mcmeta', 'pack.png', 'assets/example/lang/zh_cn.json'}
     with ModLibrary(tmp_path / 'shared.sqlite3', readonly=True) as library:
         assert library.stats()['states']['reviewed'] == 1
 
