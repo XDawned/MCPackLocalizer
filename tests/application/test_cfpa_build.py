@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -120,3 +121,55 @@ def test_download_failure_prevents_packaging(build_environment, mocker):
         build_release.desktop()
     assert commands.call_count == 1
     assert not (build_release.BUILD / "desktop").exists()
+
+
+def test_assembled_release_exposes_editable_compatibility_rules(build_environment, monkeypatch, mocker):
+    from mcpacklocalizer.core.mods.compatibility import RULES_RESOURCE, export_language_value, load_rules
+
+    rule_bytes = (build_release.ROOT / "resources" / RULES_RESOURCE).read_bytes()
+    source = build_environment / "source"
+    resources = source / "resources/compatibility"
+    resources.mkdir(parents=True)
+    (resources / "mod_language_rules.json").write_bytes(rule_bytes)
+    (resources / "README.md").write_text("可编辑规则说明", encoding="utf-8")
+    (source / "LICENSE").write_text("许可证", encoding="utf-8")
+    monkeypatch.setattr(build_release, "ROOT", source)
+    monkeypatch.setattr(build_release, "OUTPUT", build_environment / "output")
+    config = source / "backends.json"
+    config.write_text(json.dumps({"python": {"url": "python", "sha256": "hash", "version": "3.12"},
+                                  "llama_cpp_python": "test", "backends": {"cpu": {
+                                      "url": "cpu", "sha256": "hash", "library": "ggml-cpu",
+                                      "requirements": "测试"}}}), encoding="utf-8")
+    monkeypatch.setattr(build_release, "CONFIG", config)
+    desktop = build_release.BUILD / "desktop"
+    (desktop / "MCPackLocalizer").mkdir(parents=True)
+    (desktop / "MCPackLocalizer/MCPackLocalizer.exe").write_bytes(b"desktop")
+    (desktop / "desktop-build.json").write_text(json.dumps({"version": "2.0.0", "commit": "a" * 40}), encoding="utf-8")
+    python_zip = build_environment / "python.zip"
+    with zipfile.ZipFile(python_zip, "w") as archive:
+        archive.writestr("python.exe", b"runtime")
+    mocker.patch.object(build_release, "download", return_value=python_zip)
+    for name in ("native_runtime", "windows_runtime", "validate_native_dependencies", "desktop_licenses"):
+        mocker.patch.object(build_release, name)
+    mocker.patch.object(build_release, "runtime_requirements",
+                      side_effect=lambda path: path.write_text("", encoding="utf-8"))
+
+    def run(*args, **kwargs):
+        if "--target" in args:
+            target = Path(args[args.index("--target") + 1])
+            library = target / "llama_cpp/lib/ggml-cpu.dll"
+            library.parent.mkdir(parents=True, exist_ok=True)
+            library.write_bytes(b"native")
+        if "--output" in args:
+            Path(args[args.index("--output") + 1]).write_text("说明", encoding="utf-8")
+
+    mocker.patch.object(build_release, "run", side_effect=run)
+    build_release.assemble("cpu")
+    release = next(build_release.OUTPUT.glob("*.zip"))
+    with zipfile.ZipFile(release) as archive:
+        stem = release.stem
+        assert archive.read(f"{stem}/resources/{RULES_RESOURCE}") == rule_bytes
+        assert archive.read(f"{stem}/resources/compatibility/README.md").decode("utf-8") == "可编辑规则说明"
+    editable = build_release.BUILD / "cpu" / release.stem / "resources" / RULES_RESOURCE
+    assert export_language_value("projecte", "pe.manual.introduction", "中文 EMC", legacy=True,
+                                 rules=load_rules(editable)) == "中文\u00a0EMC"

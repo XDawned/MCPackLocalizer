@@ -199,6 +199,8 @@ def assemble(backend: str):
     if directory.exists():
         raise ValueError(f"组装目录已存在，请换用干净的构建目录：{directory}")
     shutil.copytree(BUILD / "desktop/MCPackLocalizer", directory)
+    # 可编辑适配规则放在 EXE 旁，桌面与内置任务解释器共用同一份配置。
+    shutil.copytree(ROOT / "resources/compatibility", directory / "resources/compatibility")
     python_config, backend_config = config["python"], config["backends"][backend]
     archive = download(python_config["url"], python_config["sha256"], ROOT / "build/downloads")
     runtime = directory / "runtime"

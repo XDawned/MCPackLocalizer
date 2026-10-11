@@ -168,6 +168,7 @@ def build_patch(scan: Scan, output: Path, allow_partial=False, replace_existing_
         manifest["partial"] |= not manifest["kubejs_complete"]
     if mod_manifest:
         manifest.update({name: mod_manifest[name] for name in ("coverage_complete", "deferred_entries", "mod_library")})
+        manifest["compatibility_adjustments"] = mod_manifest.get("compatibility_adjustments", [])
         manifest["partial"] |= mod_manifest["partial"]
     if "patchouli" in scan.metadata:
         manifest["patchouli"] = scan.metadata["patchouli"]
@@ -198,6 +199,11 @@ def build_patch(scan: Scan, output: Path, allow_partial=False, replace_existing_
         instructions += "<p>帕秋莉 JAR 补丁需替换对应模组文件；书名和首页说明的直写译文对所有游戏语言生效。</p>"
     if mod_manifest:
         instructions += "<p>在游戏资源包设置中启用 MCPackLocalizer-Mod-Translations。</p>"
+        if mod_manifest.get("compatibility_adjustments"):
+            instructions += "<p>已对模组语言条目应用导出兼容规则，任务和共享译库中的原始译文保留原样。</p>"
+            instructions += "<ul>" + "".join("<li>" + html.escape(reason) + "</li>" for reason in
+                                            dict.fromkeys(item["reason"] for item in
+                                                          mod_manifest["compatibility_adjustments"])) + "</ul>"
     report = ('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>汉化报告</title>'
               '<style>body{font-family:system-ui;margin:24px}table{border-collapse:collapse;width:100%}'
               'td,th{border:1px solid #ccc;padding:8px;vertical-align:top;white-space:pre-wrap}</style>'

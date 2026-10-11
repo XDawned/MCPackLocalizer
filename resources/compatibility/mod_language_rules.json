@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "projecte-legacy-manual-spaces",
+      "description": "旧版 ProjectE 手册空格改为不换行空格，避免换行递归导致栈溢出",
+      "enabled": true,
+      "namespace": "projecte",
+      "key": "(?!.*\\.header$)pe\\.manual\\.(?:introduction|pe_.*)",
+      "language_format": "lang",
+      "replacements": [
+        {
+          "pattern": " ",
+          "replacement": "\u00a0"
+        }
+      ]
+    }
+  ]
+}

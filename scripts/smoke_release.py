@@ -11,8 +11,9 @@ import tempfile
 from pathlib import Path
 
 from mcpacklocalizer.application.config.settings import Settings
+from mcpacklocalizer.core.mods.compatibility import RULES_RESOURCE, load_rules
 from mcpacklocalizer.core.mods.scan import validate_cfpa_snapshot
-from mcpacklocalizer.paths import INSTALL_HOME, MODEL_HOME, RESOURCES
+from mcpacklocalizer.paths import INSTALL_HOME, MODEL_HOME, RESOURCES, editable_resource_path
 from mcpacklocalizer.runtime import inference_python, task_python
 
 
@@ -23,6 +24,12 @@ def check(directory: Path, backend: str):
     assert (RESOURCES / "glossary/glossary_en_zh.json").is_file(), "术语资源缺失"
     assert (RESOURCES / "glossary/common_words_en.txt").is_file(), "排除词表缺失"
     assert (RESOURCES / "icon.ico").is_file(), "图标缺失"
+    compatibility = directory / "resources" / RULES_RESOURCE
+    assert compatibility.is_file(), "可编辑模组兼容配置缺失"
+    assert editable_resource_path(RULES_RESOURCE) == compatibility, "任务解释器未使用外部兼容配置"
+    load_rules(compatibility)
+    for resources in (RESOURCES, directory / "_internal/mcpacklocalizer/resources"):
+        assert (resources / RULES_RESOURCE).read_bytes() == compatibility.read_bytes(), "兼容配置预设不一致"
     # 运行时 wheel 与桌面 EXE 均须携带完整离线快照。
     validate_cfpa_snapshot(RESOURCES / "cfpa")
     desktop_resources = directory / "_internal/mcpacklocalizer/resources/cfpa"

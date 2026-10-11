@@ -11,10 +11,12 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from ...paths import RESOURCES
 from ..pack.extraction import Document, Entry, Scan, digest, resource_exclusions
 from ..pack.patch import safe_path, validate_output
 from ..pack.snapshots import atomic_write
 from ..translation.local import quality_warnings, validate, warning_text
+from .compatibility import apply_language_rules, load_rules
 from .library import reuse_library
 from .scan import LANG_PATH, ResourceOptions, default_cache, detect, file_digest, get_cfpa, version_tuple
 
@@ -230,15 +232,25 @@ def prepare_mod_patch(scan, allow_partial=False):
     pending = [entry for entry in active if entry.translation is None]
     deferred = scan.metadata["deferred_mod_entries"]
     if (pending or deferred) and not allow_partial:
-        raise ValueError(f"仍有 {len(pending)} 个未翻译条目和 {len(deferred)} 个延期处理的富文本/空条目；请使用 --allow-partial")
+        raise ValueError(f"仍有 {len(pending)} 个未翻译条目和 {len(deferred)} 个延期处理的富文本/空条目；请勾选下方的允许存在未处理项")
     values = defaultdict(dict)
-    hints, rows = [], []
+    hints, rows, adjustments = [], [], []
+    rules = load_rules()
     for entry in active:
         detail = scan.metadata["mod_entries"][entry.id]
         if entry.translation is not None:
             validate_mod_translation(scan, entry.source, entry.translation,
                                      manual=entry.status == "reviewed" and entry.origin == "manual")
-            values[detail["namespace"]][detail["key"]] = entry.translation
+            exported, applied = apply_language_rules(detail["namespace"], detail["key"], entry.translation,
+                                                    legacy=scan.metadata["legacy_mod_language"], rules=rules)
+            if exported != entry.translation:
+                validate_mod_translation(scan, entry.source, exported,
+                                         manual=entry.status == "reviewed" and entry.origin == "manual")
+            values[detail["namespace"]][detail["key"]] = exported
+            if exported != entry.translation:
+                adjustments.append({"entry_id": entry.id, "namespace": detail["namespace"], "key": detail["key"],
+                                    "rules": [rule.id for rule in applied],
+                                    "reason": "；".join(rule.description for rule in applied)})
             entry_hints = quality_warnings(entry.source, entry.translation)
             hints.extend({"entry_id": entry.id, **hint} for hint in entry_hints)
         else:
@@ -248,13 +260,14 @@ def prepare_mod_patch(scan, allow_partial=False):
         rows.append("<tr>" + "".join("<td>" + html.escape(value) + "</td>" for value in cells) + "</tr>")
     buffer = io.BytesIO()
     game = scan.metadata["pack_metadata"]
-    pack = {"description": "MCPackLocalizer 补充模组汉化；置于 CFPA 与整合包资源包上方"}
+    pack = {"description": "MCPackLocalizer 模组汉化补充包\n补充简体中文翻译；请置于 CFPA 与整合包资源包上方"}
     if "packFormat" in game:
         pack["pack_format"] = game["packFormat"]
     else:
         pack.update({"min_format": game["minFormat"], "max_format": game["maxFormat"]})
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("pack.mcmeta", json.dumps({"pack": pack}, ensure_ascii=False, indent=2).encode())
+        archive.writestr("pack.png", (RESOURCES / "pack.png").read_bytes())
         for namespace, translations in sorted(values.items()):
             if scan.metadata["legacy_mod_language"]:
                 for key in translations:
@@ -276,10 +289,15 @@ def prepare_mod_patch(scan, allow_partial=False):
                 "coverage_complete": scan.metadata["coverage_complete"],
                 "files": [{"path": relative, "sha256": digest(raw), "translated_entries": sum(map(len, values.values())),
                            "kind": "mod-language-resourcepack"}], "quality_warnings": hints,
+                "compatibility_adjustments": adjustments,
                 "excluded_resources": scan.metadata.get("excluded_resources", []), "i18n_mod": {"status": "disabled"},
                 "mod_library": scan.metadata["mod_library"], "cfpa_sources": scan.metadata["cfpa_sources"],
                 "note": "Enable this sparse resource pack above CFPA/custom packs; CFPA itself is not bundled"}
     warning_html = "".join("<li>" + html.escape(warning) + "</li>" for warning in scan.warnings)
+    if adjustments:
+        warning_html += f"<li>已对 {len(adjustments)} 个模组语言条目应用导出兼容规则。</li>"
+        warning_html += "".join("<li>" + html.escape(reason) + "</li>"
+                                for reason in dict.fromkeys(item["reason"] for item in adjustments))
     page = ('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>模组汉化审核</title>'
             '<style>body{font-family:system-ui;margin:24px}table{border-collapse:collapse;width:100%}'
             'td,th{border:1px solid #ddd;padding:8px;white-space:pre-wrap;vertical-align:top}</style>'

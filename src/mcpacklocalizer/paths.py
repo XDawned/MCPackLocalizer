@@ -20,6 +20,15 @@ MODEL_HOME = INSTALL_HOME or PROJECT
 RESOURCES = WORKSPACE / "resources" if WORKSPACE else PACKAGE / "resources"
 
 
+def editable_resource_path(relative: str) -> Path:
+    """桌面与任务解释器优先使用安装目录中的可编辑资源，缺失时读取包内预设。"""
+    if INSTALL_HOME is not None:
+        external = INSTALL_HOME / "resources" / relative
+        if external.is_file():
+            return external
+    return RESOURCES / relative
+
+
 def migrated_path(value: str) -> str:
     """Resolve saved paths after the source-tree migration without rewriting tasks."""
     if not value or WORKSPACE is None:
