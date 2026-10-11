@@ -1,6 +1,6 @@
 # MCPackLocalizer
 
-本地 HY-MT-2 GGUF 或远程 / 本地 API 驱动的 Minecraft 整合包汉化 PyQt6 桌面工具，
+本地GGUF模型 或远程 / 本地 API 驱动的 Minecraft 整合包翻译 PyQt6 桌面工具，
 `core/`（无 Qt 引擎）+ `application/`（无 Qt 服务）+ `ui/`（Fluent 界面）同仓库。
 根目录 `README.md` 是旧版 CLI 工具集说明，与当前代码不符；以本文件、`pyproject.toml` 和源码为准。
 
