@@ -4,7 +4,10 @@ import os
 import pytest
 from PyQt6.QtWidgets import QApplication
 
+from mcpacklocalizer.ui.styles import pin_fluent_styles
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+pin_fluent_styles()
 
 
 @pytest.fixture(scope="session")

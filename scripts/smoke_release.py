@@ -64,6 +64,7 @@ def check(directory: Path, backend: str):
                                  creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         desktop_report = json.loads(output.read_text(encoding="utf-8"))
         assert desktop.returncode == 0 and desktop_report["code"] == 0, desktop_report
+        assert desktop_report["ui"]["observation_complete"] and desktop_report["ui"]["gc_cycles"] > 1, desktop_report
         assert desktop_report["result"].get("entries", 0) > 0, desktop_report
     # GPU 绑定直接依赖驱动 DLL，在无显卡的托管 runner 上只做静态检查。
     binding = importlib.util.find_spec("llama_cpp")

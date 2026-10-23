@@ -26,6 +26,7 @@ from ...application.config.settings import Settings
 from ...paths import RESOURCES, migrated_path
 from ..logging import LogStore
 from ..process import TaskProcess
+from ..styles import pin_fluent_styles
 from .api.page import ApiPage
 from .logs import LogPage
 from .settings import SettingsPage
@@ -39,6 +40,7 @@ from .translation.rules import TranslationRulesPage
 
 class MainWindow(FluentWindow):
     def __init__(self, preferences=None, log_store=None):
+        pin_fluent_styles()
         super().__init__()
         self.log_store = log_store if log_store is not None else LogStore(parent=self)
         self.logs_page = LogPage(self, self.log_store)

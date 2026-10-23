@@ -31,9 +31,12 @@ __pycache__/
 /resources/cfpa/manifest.json
 
 # 本地开发工具与规划记录
-/.idea/
+.idea
 /.specify/
 /.kilo/
 /.claude/
 /.agents/
 /.codex/
+/desktop/out/
+test-results
+node_modules

@@ -70,7 +70,7 @@ Python、后端 wheel、CUDA 运行库的版本、下载地址和 SHA256 都固�
 
 ## 自动检查与人工测试
 
-构建会执行 Ruff、全量 pytest、运行时与 DLL 校验，以及冻结 EXE 的 offscreen 后台扫描。`scripts/release_tests.py` 只把 AGENTS.md 记录的已知基线失败标为 xfail，其它失败一律中断构建。托管 runner 没有测试 GPU 和 GGUF 模型，CI 通过后仍要到实机试译。
+构建会执行 Ruff、全量 pytest、运行时与 DLL 校验，以及冻结 EXE 的 offscreen 窗口显示与后台扫描。桌面检查在显示后立即触发一次 GC，并在事件循环中持续回收，至少观察 3 秒且等待扫描完成，覆盖菜单样式释放时机。`scripts/release_tests.py` 只把 AGENTS.md 记录的已知基线失败标为 xfail，其它失败一律中断构建。托管 runner 没有测试 GPU 和 GGUF 模型，CI 通过后仍要到实机试译。
 
 每个后端至少完成以下测试，优先用没有开发 Python 环境的机器：
 
