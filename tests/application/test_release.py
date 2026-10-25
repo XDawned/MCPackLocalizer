@@ -8,7 +8,21 @@ import pytest
 
 from scripts.build_release import native_runtime
 from scripts.publish_beta import beta_notes, publish_beta
+from scripts.publish_release import api as release_api
 from scripts.publish_release import checked_run, digest, publish, validate_assets
+
+
+@pytest.mark.parametrize("base", ["https://api.github.com", "https://github.example/api/v3/"])
+@pytest.mark.parametrize("path", ["", "actions/runs/123?exclude_pull_requests=true"])
+def test_release_api_repository_url_has_no_trailing_slash(monkeypatch, mocker, base, path):
+    monkeypatch.setenv("GITHUB_API_URL", base)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GH_TOKEN", "test-token")
+    request = mocker.patch("scripts.publish_release.urllib.request.urlopen")
+    request.return_value.__enter__.return_value.read.return_value = b'{"id": 42}'
+    assert release_api(path) == {"id": 42}
+    expected = f"{base.rstrip('/')}/repos/owner/repo" + (f"/{path}" if path else "")
+    assert request.call_args.args[0].full_url == expected
 
 
 @pytest.fixture

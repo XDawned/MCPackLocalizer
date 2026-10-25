@@ -14,8 +14,9 @@ from pathlib import Path
 
 
 def api(path: str, payload: dict | None = None):
-    base = os.environ.get("GITHUB_API_URL", "https://api.github.com")
-    request = urllib.request.Request(f"{base}/repos/{os.environ['GITHUB_REPOSITORY']}/{path}", headers={
+    base = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+    url = f"{base}/repos/{os.environ['GITHUB_REPOSITORY']}" + (f"/{path}" if path else "")
+    request = urllib.request.Request(url, headers={
         "Authorization": f"Bearer {os.environ['GH_TOKEN']}", "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "MCPackLocalizer-release",
         "Content-Type": "application/json",
